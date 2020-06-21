@@ -3,6 +3,7 @@
 /*********
   Rui Santos
   Complete project details at https://RandomNerdTutorials.com
+  cut in parts of featherstactv2 . need to mesh the code
 *********/
 //#include <Arduino.h>
 //#include <esp_now.h>
