@@ -5,11 +5,12 @@
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_GFX.h>
 #include "RTClib.h"
-//#include "settings.h"
+#include "settings.h"
 #include "sensor_readings.h"
-//#include <Adafruit_BME280.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME280.h>
 #include "SRF.h"
-//#include "ezTime.h"
+#include "ezTime.h"
 
 /******************   OLED_Display  *******************/
 #define SCREEN_WIDTH 128 //  OLED_Display width, in pixels

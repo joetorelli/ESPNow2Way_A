@@ -11,7 +11,7 @@
 //#include "EEPROM.h"
 //#include "esp_system.h"
 //#include "mqttController.h"
-//#include "SD_Card.h"
+#include "SD_Card.h"
 
 #define SD_CS 33
 //#define UpdateLED 17
@@ -19,6 +19,13 @@
 //#define IFTTTLED 12
 //#define EEPROM_SIZE 4
 //#define CALIBRATION_FILE "/TFT_Touch_CalData" //touch cal data in SPIFF
+#include <Arduino.h>
+#include <Adafruit_SSD1306.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME280.h>
+#include "settings.h"
+#include "sensor_readings.h"
 #endif
 
 #define DEBUGLOG

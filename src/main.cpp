@@ -5,25 +5,28 @@
   Complete project details at https://RandomNerdTutorials.com
   cut in parts of featherstactv2 . need to mesh the code
 
-  
+
 *********/
-//#include <Arduino.h>
-//#include <esp_now.h>
-//#include <WiFi.h>
+#include <Arduino.h>
+#include <esp_now.h>
+#include <WiFi.h>
 #include "NetWork.h"
-#include <Wire.h>
+
+//#include "Wire.h"
+#include "SRF.h"
+#include "OLED.h"
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
+#include "SD_Card.h"
 
-//#include <Adafruit_GFX.h>
-//#include <Adafruit_SSD1306.h>
-//#include "SRF.h"
-#include "OLED.h"
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include "SRF.h"
+
 #include "settings.h"        // The order is important!
 #include "sensor_readings.h" // The order is important!
 #include "network_config.h"
-#include "SD_Card.h"
-#include "SRF.h"
+
 #include <ezTime.h>
 #include <TaskScheduler.h>
 
@@ -486,26 +489,11 @@ void setup()
 
   // Register for a callback function that will be called when data is received
   esp_now_register_recv_cb(OnDataRecv);
-
-  /*******************  rtc  **************************/
-  //convert string from ntp to int for rtc
-  String Y = CentralTZ.dateTime("Y");
-  int Year = Y.toInt();
-  String M = CentralTZ.dateTime("m");
-  int Month = M.toInt();
-  String D = CentralTZ.dateTime("d");
-  int Day = D.toInt();
-  String H = CentralTZ.dateTime("H");
-  int Hour = H.toInt();
-  String m = CentralTZ.dateTime("i");
-  int Min = m.toInt();
-  String S = CentralTZ.dateTime("s");
-  int Sec = S.toInt();
 }
 
 void loop()
 {
-  getReadings();
+  //getReadings();
 
   // Set values to send
   BME280Readings.temp = temperature;
@@ -540,7 +528,7 @@ void loop()
   }
 
   OLED_Display.display();
-  updateDisplay();
+  //updateDisplay();
   delay(10000);
 
   // start task manager

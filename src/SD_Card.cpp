@@ -209,21 +209,20 @@ void Refresh_SD(DateTime *RTCClk, BME_Sensor *SenVal)
     DEBUGPRINT("*****************************************TimeStr= ");
     DEBUGPRINTLN(TimeStr);
 
- 
     File myFile;
     myFile = SD.open("/datalog.txt", FILE_APPEND);
     if (myFile)
     {
-        DEBUG_PRINTLN("Writing Time");
+        DEBUGPRINTLN("Writing Time");
         myFile.println(TimeStr);
         myFile.close();
-        DEBUG_PRINTLN("Closed File");
+        DEBUGPRINTLN("Closed File");
     }
     else
     {
         Serial.println("File Error");
     }
-/*    
+    /*    
     // re-open the file for reading:
     myFile = SD.open("/datalog.txt");
     if (myFile)
@@ -243,7 +242,7 @@ void Refresh_SD(DateTime *RTCClk, BME_Sensor *SenVal)
         // if the file didn't open, print an error:
         Serial.println("error opening");
     }
-*/    
+*/
 }
 
 /* examples
