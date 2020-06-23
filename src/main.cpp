@@ -7,28 +7,26 @@
 
 
 *********/
-#include <Arduino.h>
-#include <esp_now.h>
-#include <WiFi.h>
-#include "NetWork.h"
 
-//#include "Wire.h"
+
+
+
+#include <Arduino.h>
+
+#include <WiFi.h>
+#include <esp_now.h>
+#include "Wire.h"
 #include "SRF.h"
 #include "OLED.h"
-#include <Adafruit_Sensor.h>
-#include <Adafruit_BME280.h>
-#include "SD_Card.h"
-
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-#include "SRF.h"
-
 #include "settings.h"        // The order is important!
 #include "sensor_readings.h" // The order is important!
 #include "network_config.h"
 
+#include "SD_Card.h"
 #include <ezTime.h>
 #include <TaskScheduler.h>
+
+
 
 // assign i2c pin numbers
 #define I2c_SDA 21
@@ -581,7 +579,8 @@ void SD_Update()
 {
 
   DEBUGPRINTLN("Write SD**************");
-  Refresh_SD(&RTCClock, &Sensor_Values);
+  //Refresh_SD(&RTCClock, &Sensor_Values);
+  Refresh_SD(&Sensor_Values);
 }
 
 void getReadings()

@@ -5,6 +5,9 @@
 #include "settings.h"
 #include "Wire.h"
 
+
+
+
 // Base address = 0xE0. 0xE0-0xFF valid. addr = base + (2 * device_no)
 #define SRF_ADDR 0x70
 #define SRF_COMMAND 0x00 // command register

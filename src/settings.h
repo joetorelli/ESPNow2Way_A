@@ -24,7 +24,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
-#include "settings.h"
+//#include "settings.h"
 #include "sensor_readings.h"
 #endif
 
