@@ -1,20 +1,13 @@
-
-
-/*********
-  Rui Santos
-  Complete project details at https://RandomNerdTutorials.com
-  cut in parts of featherstactv2 . need to mesh the code
-
-
-*********/
-
-
-
+/*************************************
+   adafruit feather esp32
+   adalogger SDcard, PCF8523 RTC
+   OLED feather wing 128x32
+// Date and time functions using a PCF8523 RTC connected via I2C and Wire lib
+   purpose: log data
+*************************************/
 
 #include <Arduino.h>
-
 #include <WiFi.h>
-#include <esp_now.h>
 #include "Wire.h"
 #include "SRF.h"
 #include "OLED.h"
@@ -26,10 +19,12 @@
 #include <ezTime.h>
 #include <TaskScheduler.h>
 
-
+/**********************************************
+  Pin Definitions
+**********************************************/
 
 // assign i2c pin numbers
-#define I2c_SDA 21
+#define I2c_SDA 23
 #define I2c_SCL 22
 
 /*******************   oled display   ******************/
@@ -64,83 +59,10 @@ Scheduler runner;
 struct SRFRanges SRFDist;
 int Light = 0;
 
-// REPLACE WITH THE MAC Address of your receiver
-uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-String BroadCastAdr = "A4:CF:12:0B:2B:B4";
-
-// Define variables to store BME280 readings to be sent
-float temperature;
-float humidity;
-float pressure;
-
-// Define variables to store incoming readings
-float incomingTemp;
-float incomingHum;
-float incomingPres;
-
-// Variable to store if sending data was successful
-String success;
-
-// Structure example to send data
-// Must match the receiver structure
-typedef struct struct_msg
-{
-  char a[32];
-  int b;
-  float c;
-  String d;
-  bool e;
-} struct_msg;
-
-//Structure example to send data
-//Must match the receiver structure
-typedef struct struct_message
-{
-  float temp;
-  float hum;
-  float pres;
-} struct_message;
-
-// Create a struct_message called myData
-struct_msg myData;
-
-// Create a struct_message called BME280Readings to hold sensor readings
-struct_message BME280Readings;
-
-// Create a struct_message to hold incoming sensor readings
-struct_message incomingReadings;
-
-// Callback when data is sent
-void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
-{
-  DEBUGPRINT("\r\nLast Packet Send Status:\t");
-  DEBUGPRINTLN(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
-  if (status == 0)
-  {
-    success = "Delivery Success :)";
-  }
-  else
-  {
-    success = "Delivery Fail :(";
-  }
-}
-
-// Callback when data is received
-void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
-{
-  memcpy(&incomingReadings, incomingData, sizeof(incomingReadings));
-  DEBUGPRINT("Bytes received: ");
-  DEBUGPRINTLN(len);
-  incomingTemp = incomingReadings.temp;
-  incomingHum = incomingReadings.hum;
-  incomingPres = incomingReadings.pres;
-}
-
 /*******************************************************/
-/***********************   setup   *****************/
+/***********************   setup   *********************/
 void setup()
 {
-  // Init Serial Monitor
   Serial.begin(115200);
 
   /*********   init i2c  *********/
@@ -150,12 +72,12 @@ void setup()
 
   /************* set up task runner  *************/
   runner.init();
-  runner.addTask(t1_Update);
+  runner.addTask(t1_Update); //for sensors
   //runner.addTask(t2_clock);
-  runner.addTask(t3_SDCard);
-  t1_Update.enable();
+  runner.addTask(t3_SDCard); //for SD card
+  t1_Update.enable();        //for sensors
   //t2_clock.enable();
-  t3_SDCard.enable();
+  t3_SDCard.enable(); //for SD card
 
   /********************* oled  ********************/
   // SSD1306_SWITCHCAPVCC = generate OLED_Display voltage from 3.3V internally
@@ -167,8 +89,7 @@ void setup()
   }
   else
   {
-    DEBUGPRINTLN("SSD1306 Initialized");
-    ;
+    DEBUG_PRINTLN("SSD1306 Init");
   }
 
   // Clear the oled buffer.
@@ -181,85 +102,6 @@ void setup()
   pinMode(BUTTON_A, INPUT_PULLUP);
   pinMode(BUTTON_B, INPUT_PULLUP);
   pinMode(BUTTON_C, INPUT_PULLUP);
-
-  // Init BME280 sensor
-  /**********  init i2c sensor  ************/
-  OLED_Display.print("Init Sensor");
-
-  status = bme.begin(BME280_ADDRESS_ALTERNATE); // get status of sensor
-
-  if (!status) // test status
-  {
-    OLED_Display.print("Can't find BME280");
-    DEBUGPRINTLN("Can't find BME280, it may have fell on the floor");
-    //while (1);
-  }
-  else
-  {
-    OLED_Display.print("Found BME280");
-    DEBUGPRINTLN("Found BME280");
-  }
-  OLED_Display.display();
-  delay(1000);
-
-  /*********************  SD Card  *************************/
-  SD.begin(SD_CS);
-  if (!SD.begin(SD_CS))
-  {
-    DEBUGPRINTLN("SD Card failed");
-    return;
-  }
-
-  uint8_t CardType = SD.cardType();
-
-  if (CardType == CARD_NONE)
-  {
-    DEBUGPRINTLN("No SD Card Found");
-    return;
-  }
-
-  DEBUGPRINT("SD Card Type: ");
-
-  if (CardType == CARD_MMC)
-  {
-    DEBUGPRINTLN("MMC");
-  }
-  else if (CardType == CARD_SD)
-  {
-    DEBUGPRINTLN("SCSC");
-  }
-  else if (CardType == CARD_SDHC)
-  {
-    DEBUGPRINTLN("SDHC");
-  }
-  else
-  {
-    DEBUGPRINTLN("Unkown Type");
-  }
-  String Tempp;
-
-  //   uint64_t CardSize = SD.cardSize() / (1024 * 1024);
-  //   Serial.printf("SD Card Size: %lluMB\n", CardSize);
-  //   Serial.printf("Total Space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
-  //   Serial.printf("Used Space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
-  //   listDir(SD, "/", 0);
-
-  /*****************************   srf08   *************************************/
-  //srf max reliable range = 6meters
-  //set max range
-  Wire.beginTransmission(SRF_ADDR); //transmit to device
-  Wire.write(byte(SRF_ECHO_H));     //range register
-  Wire.write(byte(0x8C));           //max range 0x00=43mm,0x01=86mm,0x18=1000mm,0x8C=6000mm
-  Wire.endTransmission();
-
-  //set gain
-  // Wire.beginTransmission(0x70);    //transmit to device
-  // Wire.write(byte(0x01));          //gain register
-  // Wire.write(byte(0x00));          //max range 0x00=43mm,0x01=86mm,0x18=1000mm,0x8C=6000mm
-  // Wire.endTransmission();
-  // tell sensor to read echos
-
-  delay(1000);
 
   /**********************   wifi   ***********************/
   DEBUGPRINT("Connect to SSID: ");
@@ -410,125 +252,91 @@ void setup()
     OLED_Display.print("RTC set to NTP");
   }
 
-  // Set device as a Wi-Fi Station
-  WiFi.mode(WIFI_STA);
+  //stop asking for internet ntp time
+  void setInterval(uint16_t seconds = 0);
 
-  // Init ESP-NOW
-  if (esp_now_init() != ESP_OK)
+  /**********  init i2c sensor  ************/
+  OLED_Display.print("Init Sensor");
+
+  status = bme.begin(BME280_ADDRESS_ALTERNATE); // get status of sensor
+
+  if (!status) // test status
   {
-    DEBUGPRINTLN("Error initializing ESP-NOW");
-
-    DEBUGPRINTLN("Error initializing ESP-NOW");
-
-    OLED_Display.clearDisplay();
-    OLED_Display.display();
-
-    OLED_Display.println("Error initializing ESP-NOW");
-    OLED_Display.display();
-
-    delay(1000);
-    return;
+    OLED_Display.print("Can't find BME280");
+    DEBUGPRINTLN("Can't find BME280, it may have fell on the floor");
+    //while (1);
   }
   else
   {
-    DEBUGPRINTLN("initialized ESP-NOW");
-
-    OLED_Display.clearDisplay();
-    OLED_Display.display();
-
-    OLED_Display.println("initialized ESP-NOW");
-    OLED_Display.display();
-
-    delay(1000);
+    OLED_Display.print("Found BME280");
+    DEBUGPRINTLN("Found BME280");
   }
-
-  // Once ESPNow is successfully Init, we will register for Send CB to
-  // get the status of Trasnmitted packet
-  esp_now_register_send_cb(OnDataSent);
-
-  // Register peer
-  esp_now_peer_info_t peerInfo;
-  memcpy(peerInfo.peer_addr, broadcastAddress, 6);
-  peerInfo.channel = 0;
-  peerInfo.encrypt = false;
-
-  // Add peer
-  if (esp_now_add_peer(&peerInfo) != ESP_OK)
-  {
-    DEBUGPRINTLN("Failed to add peer");
-    OLED_Display.clearDisplay();
-    OLED_Display.display();
-
-    OLED_Display.println("Failed to add peer");
-    OLED_Display.display();
-
-    delay(1000);
-    return;
-  }
-  else
-  {
-    DEBUGPRINTLN("Added Peer");
-    OLED_Display.clearDisplay();
-    OLED_Display.display();
-
-    OLED_Display.println("Added Peer");
-    OLED_Display.display();
-
-    delay(1000);
-  }
-  OLED_Display.clearDisplay();
-  OLED_Display.setCursor(0, 0);
-  WiFi.mode(WIFI_MODE_STA);
-  OLED_Display.println("SendMac:");
-  OLED_Display.println(WiFi.macAddress());
-  OLED_Display.println("RecMac:");
-  OLED_Display.println(BroadCastAdr);
   OLED_Display.display();
+  delay(1000);
 
-  // Register for a callback function that will be called when data is received
-  esp_now_register_recv_cb(OnDataRecv);
+  /*********************  SD Card  *************************/
+  SD.begin(SD_CS);
+  if (!SD.begin(SD_CS))
+  {
+    DEBUGPRINTLN("SD Card failed");
+    return;
+  }
+
+  uint8_t CardType = SD.cardType();
+
+  if (CardType == CARD_NONE)
+  {
+    DEBUGPRINTLN("No SD Card Found");
+    return;
+  }
+
+  DEBUGPRINT("SD Card Type: ");
+
+  if (CardType == CARD_MMC)
+  {
+    DEBUGPRINTLN("MMC");
+  }
+  else if (CardType == CARD_SD)
+  {
+    DEBUGPRINTLN("SCSC");
+  }
+  else if (CardType == CARD_SDHC)
+  {
+    DEBUGPRINTLN("SDHC");
+  }
+  else
+  {
+    DEBUGPRINTLN("Unkown Type");
+  }
+  String Tempp;
+
+  //   uint64_t CardSize = SD.cardSize() / (1024 * 1024);
+  //   Serial.printf("SD Card Size: %lluMB\n", CardSize);
+  //   Serial.printf("Total Space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
+  //   Serial.printf("Used Space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
+  //   listDir(SD, "/", 0);
+
+  /*****************************   srf08   *************************************/
+  //srf max reliable range = 6meters
+  //set max range
+  Wire.beginTransmission(SRF_ADDR); //transmit to device
+  Wire.write(byte(SRF_ECHO_H));     //range register
+  Wire.write(byte(0x8C));           //max range 0x00=43mm,0x01=86mm,0x18=1000mm,0x8C=6000mm
+  Wire.endTransmission();
+
+  //set gain
+  // Wire.beginTransmission(0x70);    //transmit to device
+  // Wire.write(byte(0x01));          //gain register
+  // Wire.write(byte(0x00));          //max range 0x00=43mm,0x01=86mm,0x18=1000mm,0x8C=6000mm
+  // Wire.endTransmission();
+  // tell sensor to read echos
+
+  delay(1000);
 }
 
+/****************   loop   ********************/
 void loop()
 {
-  //getReadings();
-
-  // Set values to send
-  BME280Readings.temp = temperature;
-  BME280Readings.hum = humidity;
-  BME280Readings.pres = pressure;
-  // Set values to send
-  strcpy(myData.a, "CHAR");
-  myData.b = random(1, 20);
-  myData.c = 1.2;
-  myData.d = "Hello";
-  myData.e = false;
-  if (myData.b % 2)
-  {
-
-    myData.e = false;
-  }
-  else
-  {
-    myData.e = true;
-  }
-
-  // Send message via ESP-NOW
-  esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *)&BME280Readings, sizeof(BME280Readings));
-
-  if (result == ESP_OK)
-  {
-    DEBUGPRINTLN("Sent with success");
-  }
-  else
-  {
-    DEBUGPRINTLN("Error sending the data");
-  }
-
-  OLED_Display.display();
-  //updateDisplay();
-  delay(10000);
-
   // start task manager
   runner.execute();
   //events();
@@ -579,53 +387,5 @@ void SD_Update()
 {
 
   DEBUGPRINTLN("Write SD**************");
-  //Refresh_SD(&RTCClock, &Sensor_Values);
-  Refresh_SD(&Sensor_Values);
-}
-
-void getReadings()
-{
-  temperature = bme.readTemperature();
-  humidity = bme.readHumidity();
-  pressure = (bme.readPressure() / 100.0F);
-}
-
-void updateDisplay()
-{
-  // Display Readings on OLED Display
-  OLED_Display.clearDisplay();
-  OLED_Display.setTextSize(1);
-  OLED_Display.setTextColor(WHITE);
-  OLED_Display.setCursor(0, 0);
-  OLED_Display.println("INCOMING READINGS");
-  OLED_Display.setCursor(0, 15);
-  OLED_Display.print("Temperature: ");
-  OLED_Display.print(incomingTemp);
-  OLED_Display.cp437(true);
-  OLED_Display.write(248);
-  OLED_Display.print("C");
-  OLED_Display.setCursor(0, 25);
-  OLED_Display.print("Humidity: ");
-  OLED_Display.print(incomingHum);
-  OLED_Display.print("%");
-  OLED_Display.setCursor(0, 35);
-  OLED_Display.print("Pressure: ");
-  OLED_Display.print(incomingPres);
-  OLED_Display.print("hPa");
-  OLED_Display.setCursor(0, 56);
-  OLED_Display.print(success);
-  OLED_Display.display();
-
-  // Display Readings in Serial Monitor
-  DEBUGPRINTLN("INCOMING READINGS");
-  DEBUGPRINT("Temperature: ");
-  DEBUGPRINT(incomingReadings.temp);
-  DEBUGPRINTLN(" ºC");
-  DEBUGPRINT("Humidity: ");
-  DEBUGPRINT(incomingReadings.hum);
-  DEBUGPRINTLN(" %");
-  DEBUGPRINT("Pressure: ");
-  DEBUGPRINT(incomingReadings.pres);
-  DEBUGPRINTLN(" hPa");
-  DEBUGPRINTLN();
+  Refresh_SD(&RTCClock, &Sensor_Values);
 }

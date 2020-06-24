@@ -1,5 +1,6 @@
 #include "Arduino.h"
 #include "SD_Card.h"
+
 void listDir(fs::FS &fs, const char *dirname, uint8_t levels)
 {
     Serial.printf("Listing directory: %s\n", dirname);
@@ -152,78 +153,76 @@ void deleteFile(fs::FS &fs, const char *path)
     }
 }
 
-void Refresh_SD(BME_Sensor *SenVal)
+void Refresh_SD(DateTime *RTCClk, BME_Sensor *SenVal)
+
 {
-}
-//void Refresh_SD(DateTime *RTCClk, BME_Sensor *SenVal)
-//{
 
-//     String TimeStr = "";
+    String TimeStr = "";
 
-//     if (RTCClk->year() < 10)
-//     {
-//         TimeStr = "0";
-//     }
-//     TimeStr = TimeStr + RTCClk->year();
+    if (RTCClk->year() < 10)
+    {
+        TimeStr = "0";
+    }
+    TimeStr = TimeStr + RTCClk->year();
 
-//     TimeStr = TimeStr + "/";
+    TimeStr = TimeStr + "/";
 
-//     if (RTCClk->month() < 10)
-//     {
-//         TimeStr = TimeStr + "0";
-//     }
-//     TimeStr = TimeStr + RTCClk->month();
+    if (RTCClk->month() < 10)
+    {
+        TimeStr = TimeStr + "0";
+    }
+    TimeStr = TimeStr + RTCClk->month();
 
-//     TimeStr = TimeStr + "/";
+    TimeStr = TimeStr + "/";
 
-//     if (RTCClk->day() < 10)
-//     {
-//         TimeStr = TimeStr + "0";
-//     }
-//     TimeStr = TimeStr + RTCClk->day();
+    if (RTCClk->day() < 10)
+    {
+        TimeStr = TimeStr + "0";
+    }
+    TimeStr = TimeStr + RTCClk->day();
 
-//     TimeStr = TimeStr + " , ";
+    TimeStr = TimeStr + " , ";
 
-//     if (RTCClk->hour() < 10)
-//     {
-//         TimeStr = TimeStr + "0";
-//     }
-//     TimeStr = TimeStr + RTCClk->hour();
+    if (RTCClk->hour() < 10)
+    {
+        TimeStr = TimeStr + "0";
+    }
+    TimeStr = TimeStr + RTCClk->hour();
 
-//     TimeStr = TimeStr + ":";
+    TimeStr = TimeStr + ":";
 
-//     if (RTCClk->minute() < 10)
-//     {
-//         TimeStr = TimeStr + "0";
-//     }
-//     TimeStr = TimeStr + RTCClk->minute();
+    if (RTCClk->minute() < 10)
+    {
+        TimeStr = TimeStr + "0";
+    }
+    TimeStr = TimeStr + RTCClk->minute();
 
-//     TimeStr = TimeStr + ":";
+    TimeStr = TimeStr + ":";
 
-//     if (RTCClk->second() < 10)
-//     {
-//         TimeStr = TimeStr + "0";
-//     }
-//     TimeStr = TimeStr + RTCClk->second();
+    if (RTCClk->second() < 10)
+    {
+        TimeStr = TimeStr + "0";
+    }
+    TimeStr = TimeStr + RTCClk->second();
 
-//     TimeStr = TimeStr + " T: " + SenVal->f_temperature + " H: " + SenVal->f_humidity;
-//     DEBUGPRINT("*****************************************TimeStr= ");
-//     DEBUGPRINTLN(TimeStr);
+    TimeStr = TimeStr + " T: " + SenVal->f_temperature + " H: " + SenVal->f_humidity;
+    DEBUGPRINT("*****************************************TimeStr= ");
+    DEBUGPRINTLN(TimeStr);
 
-//     File myFile;
-//     myFile = SD.open("/datalog.txt", FILE_APPEND);
-//     if (myFile)
-//     {
-//         DEBUGPRINTLN("Writing Time");
-//         myFile.println(TimeStr);
-//         myFile.close();
-//         DEBUGPRINTLN("Closed File");
-//     }
-//     else
-//     {
-//         Serial.println("File Error");
-//     }
-/*    
+    File myFile;
+    myFile = SD.open("/datalog.txt", FILE_APPEND);
+    if (myFile)
+    {
+        DEBUG_PRINTLN("Writing Time");
+        myFile.println(TimeStr);
+        myFile.close();
+        DEBUG_PRINTLN("Closed File");
+    }
+    else
+    {
+        Serial.println("File Error");
+    }
+    /*    
     // re-open the file for reading:
     myFile = SD.open("/datalog.txt");
     if (myFile)
@@ -244,7 +243,7 @@ void Refresh_SD(BME_Sensor *SenVal)
         Serial.println("error opening");
     }
 */
-//}
+}
 
 /* examples
     listDir(SD, "/", 0);
