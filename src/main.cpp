@@ -7,6 +7,7 @@
 *************************************/
 
 #include <Arduino.h>
+#include <esp_now.h>
 #include <WiFi.h>
 #include "Wire.h"
 #include "SRF.h"
@@ -18,13 +19,13 @@
 #include "SD_Card.h"
 #include <ezTime.h>
 #include <TaskScheduler.h>
-
+//#include "RTClib.h"
 /**********************************************
   Pin Definitions
 **********************************************/
 
 // assign i2c pin numbers
-#define I2c_SDA 23
+#define I2c_SDA 21   //21 for nodemcu32s   //23 for feather
 #define I2c_SCL 22
 
 /*******************   oled display   ******************/
@@ -32,12 +33,23 @@
 Adafruit_SSD1306 OLED_Display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 /*******************  rtc  ***************************/
-RTC_PCF8523 rtc;
+//RTC_PCF8523 rtc;    //used on feather
+
+RTC_DS3231 rtc;
 DateTime RTCClock = rtc.now();
 Timezone CentralTZ;
 struct OLED_SW Switch_State;
 struct BME_Sensor Sensor_Values;
+struct BME_Sensor incomingReadings;
+// Define variables to store BME280 readings to be sent
+float temperature;
+float humidity;
+float pressure;
 
+// Define variables to store incoming readings
+float incomingTemp;
+float incomingHum;
+float incomingPres;
 /***********************   bme280 i2c sensor   **********/
 Adafruit_BME280 bme;
 // BME280_ADDRESS = 0x77
@@ -47,7 +59,7 @@ Adafruit_BME280 bme;
 void sensor_update();
 //void clock_update();
 void SD_Update();
-
+void getReadings();
 /***************  task scheduler  **************************/
 Task t1_Update(1000, TASK_FOREVER, &sensor_update); //can not pass vars with pointer in this function
 //Task t2_clock(1000, TASK_FOREVER, &clock_update);
@@ -59,7 +71,34 @@ Scheduler runner;
 struct SRFRanges SRFDist;
 int Light = 0;
 
-/*******************************************************/
+/*************************   esp_NOW   ******************************/
+
+// MAC address of RECEIVER
+uint8_t broadcastAddress[] {0x30, 0xAE, 0xA4, 0x46, 0xF0, 0xE4};
+String ESPNOW_Success;
+void updateDisplay();
+// Callback when data is sent
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  Serial.print("\r\nLast Packet Send Status:\t");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  if (status ==0){
+    ESPNOW_Success = "Delivery Success :)";
+  }
+  else{
+    ESPNOW_Success = "Delivery Fail :(";
+  }
+}
+
+// Callback when data is received
+void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
+  memcpy(&incomingReadings, incomingData, sizeof(incomingReadings));
+  Serial.print("Bytes received: ");
+  Serial.println(len);
+  incomingTemp = incomingReadings.f_temperature;
+  incomingHum = incomingReadings.f_humidity;
+  incomingPres = incomingReadings.f_pressure;
+}
+
 /***********************   setup   *********************/
 void setup()
 {
@@ -104,6 +143,36 @@ void setup()
   pinMode(BUTTON_C, INPUT_PULLUP);
 
   /**********************   wifi   ***********************/
+
+// Set device as a Wi-Fi Station
+  WiFi.mode(WIFI_STA);
+
+  // Init ESP-NOW
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+
+  // Once ESPNow is successfully Init, we will register for Send CB to
+  // get the status of Trasnmitted packet
+  esp_now_register_send_cb(OnDataSent);
+  
+  // Register peer
+  esp_now_peer_info_t peerInfo;
+  memcpy(peerInfo.peer_addr, broadcastAddress, 6);
+  peerInfo.channel = 0;  
+  peerInfo.encrypt = false;
+  
+  // Add peer        
+  if (esp_now_add_peer(&peerInfo) != ESP_OK){
+    Serial.println("Failed to add peer");
+    return;
+  }
+  // Register for a callback function that will be called when data is received
+  esp_now_register_recv_cb(OnDataRecv);
+
+
+  /*
   DEBUGPRINT("Connect to SSID: ");
   DEBUGPRINTLN(WIFI_SSID);
   DEBUGPRINT("Waiting for Network:");
@@ -163,7 +232,7 @@ void setup()
   OLED_Display.clearDisplay();
   OLED_Display.display();
 
-  /**********************  ntp   ******************/
+ // *********************  ntp   *****************
   DEBUGPRINT("Waiting for NTP:");
   OLED_Display.setCursor(0, 0);
   OLED_Display.println("Waiting for NTP:");
@@ -200,7 +269,7 @@ void setup()
   DEBUGPRINTLN("NTP: " + NTPTime);
   OLED_Display.println();
   OLED_Display.println(NTPTime);
-
+*/
   /*******************  rtc  **************************/
   //convert string from ntp to int for rtc
   String Y = CentralTZ.dateTime("Y");
@@ -223,6 +292,10 @@ void setup()
 
     OLED_Display.clearDisplay();
     OLED_Display.print("Couldn't find RTC");
+
+    rtc.adjust(DateTime(Year, Month, Day, Hour, Min, Sec));
+    DEBUGPRINTLN("Clock Set");
+    OLED_Display.print("RTC set to NTP");
     OLED_Display.display();
 
     delay(1000);
@@ -232,25 +305,30 @@ void setup()
   else
   {
     DEBUGPRINTLN("RTC Init");
-  }
-
-  if (!rtc.initialized())
-  {
-    //update rtc with ntp time
-    DEBUGPRINTLN("RTC is NOT running! - Setting Clock to NTP");
-    rtc.adjust(DateTime(Year, Month, Day, Hour, Min, Sec));
-    DEBUGPRINTLN("Clock Set");
-    OLED_Display.print("RTC set to NTP");
-  }
-
-  else
-  {
-    //update rtc with ntp time
     DEBUGPRINTLN("RTC Running - Updating Clock to NTP");
     rtc.adjust(DateTime(Year, Month, Day, Hour, Min, Sec));
     DEBUGPRINTLN("Clock Set");
     OLED_Display.print("RTC set to NTP");
   }
+
+  //used with feather clock pcf8523 does not work with ds3231
+  // if (!rtc.initialized())
+  // {
+  //   //update rtc with ntp time
+  //   DEBUGPRINTLN("RTC is NOT running! - Setting Clock to NTP");
+  //   rtc.adjust(DateTime(Year, Month, Day, Hour, Min, Sec));
+  //   DEBUGPRINTLN("Clock Set");
+  //   OLED_Display.print("RTC set to NTP");
+  // }
+
+  // else
+  // {
+  //   //update rtc with ntp time
+  //   DEBUGPRINTLN("RTC Running - Updating Clock to NTP");
+  //   rtc.adjust(DateTime(Year, Month, Day, Hour, Min, Sec));
+  //   DEBUGPRINTLN("Clock Set");
+  //   OLED_Display.print("RTC set to NTP");
+  // }
 
   //stop asking for internet ntp time
   void setInterval(uint16_t seconds = 0);
@@ -274,7 +352,9 @@ void setup()
   OLED_Display.display();
   delay(1000);
 
-  /*********************  SD Card  *************************/
+
+  /*
+  ********************  SD Card  ************************
   SD.begin(SD_CS);
   if (!SD.begin(SD_CS))
   {
@@ -315,15 +395,16 @@ void setup()
   //   Serial.printf("Total Space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
   //   Serial.printf("Used Space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
   //   listDir(SD, "/", 0);
-
+*/
   /*****************************   srf08   *************************************/
   //srf max reliable range = 6meters
   //set max range
+  /*
   Wire.beginTransmission(SRF_ADDR); //transmit to device
   Wire.write(byte(SRF_ECHO_H));     //range register
   Wire.write(byte(0x8C));           //max range 0x00=43mm,0x01=86mm,0x18=1000mm,0x8C=6000mm
   Wire.endTransmission();
-
+*/
   //set gain
   // Wire.beginTransmission(0x70);    //transmit to device
   // Wire.write(byte(0x01));          //gain register
@@ -353,12 +434,12 @@ void loop()
 
   DEBUGPRINTLN("Read switches");
   ReadSwitches(&Switch_State);
-
+/*
   DEBUGPRINTLN("Read Ping");
   SRFPing();
   Light = SRFLight();
   SRFDistance(&SRFDist);
-
+*/
   DEBUGPRINTLN("Display Switches");
   DisplaySwitches(&OLED_Display, &Switch_State);
 
@@ -375,7 +456,82 @@ void loop()
 
   OLED_Display.display(); // update OLED_Display
                           //delay(2000);
+
+
+getReadings();
+ 
+  // Set values to send
+  Sensor_Values.f_temperature = temperature;
+  Sensor_Values.f_humidity = humidity;
+  Sensor_Values.f_pressure = pressure;
+
+  // Send message via ESP-NOW
+  esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &Sensor_Values, sizeof(Sensor_Values));
+   
+  if (result == ESP_OK) {
+    Serial.println("Sent with success");
+  }
+  else {
+    Serial.println("Error sending the data");
+  }
+  updateDisplay();
+  delay(10000);
+
+
+
+
+
+
 }
+
+
+void getReadings(){
+  temperature = bme.readTemperature();
+  humidity = bme.readHumidity();
+  pressure = (bme.readPressure() / 100.0F);
+}
+
+void updateDisplay(){
+  // Display Readings on OLED Display
+  OLED_Display.clearDisplay();
+  OLED_Display.setTextSize(1);
+  OLED_Display.setTextColor(WHITE);
+  OLED_Display.setCursor(0, 0);
+  OLED_Display.println("INCOMING READINGS");
+  OLED_Display.setCursor(0, 15);
+  OLED_Display.print("Temperature: ");
+  OLED_Display.print(incomingTemp);
+  OLED_Display.cp437(true);
+  OLED_Display.write(248);
+  OLED_Display.print("C");
+  OLED_Display.setCursor(0, 25);
+  OLED_Display.print("Humidity: ");
+  OLED_Display.print(incomingHum);
+  OLED_Display.print("%");
+  OLED_Display.setCursor(0, 35);
+  OLED_Display.print("Pressure: ");
+  OLED_Display.print(incomingPres);
+  OLED_Display.print("hPa");
+  OLED_Display.setCursor(0, 56);
+  OLED_Display.print(ESPNOW_Success);
+  OLED_Display.display();
+  
+  // Display Readings in Serial Monitor
+  Serial.println("INCOMING READINGS");
+  Serial.print("Temperature: ");
+  Serial.print(incomingReadings.f_temperature);
+  Serial.println(" ºC");
+  Serial.print("Humidity: ");
+  Serial.print(incomingReadings.f_humidity);
+  Serial.println(" %");
+  Serial.print("Pressure: ");
+  Serial.print(incomingReadings.f_pressure);
+  Serial.println(" hPa");
+  Serial.println();
+}
+
+
+
 
 void sensor_update()
 {
