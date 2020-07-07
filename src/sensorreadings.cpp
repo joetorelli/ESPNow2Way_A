@@ -13,6 +13,23 @@ void ReadSensor(Adafruit_BME280 *Sensor, BME_Sensor *SenVal)
     SenVal->f_humidity = Sensor->readHumidity();
     SenVal->f_pressure = Sensor->readPressure() / 100.0F;
     SenVal->f_altitude = Sensor->readAltitude(SEALEVELPRESSURE_HPA);
+    
+    //     if (digitalRead(BUTTON_A) == 0)
+    // {
+     //    SenVal->Switch_A = LocalReadings.Switch_A;
+    // }
+    // else
+    // {
+    //     SenVal->Switch_A = 0;
+    // }
+
+    DEBUGPRINTLN("ReadSensor: ");
+    DEBUGPRINT("f_temp: ");
+    DEBUGPRINTLN(SenVal->f_temperature);
+    DEBUGPRINT("f_humid: ");
+    DEBUGPRINTLN(SenVal->f_humidity);
+    DEBUGPRINT("f_pres: ");
+    DEBUGPRINTLN(SenVal->f_pressure);
 }
 
 void ReadSwitches(OLED_SW *SwState) //Adafruit_SSD1306 *OLED_Display)

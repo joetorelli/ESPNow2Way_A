@@ -18,6 +18,9 @@ struct BME_Sensor
     float f_humidity = 0;
     float f_pressure = 0;
     float f_altitude = 0;
+    int Switch_A = 0;
+    int Switch_B = 0;
+    int Switch_C = 0;
 };
 
 struct OLED_SW

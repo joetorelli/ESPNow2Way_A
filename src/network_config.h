@@ -8,6 +8,6 @@
 #define WIFI_SSID "AA Cyber Security"
 #define WIFI_PASSWORD "upck4116"
 
-#include "AdafruitIO_WiFi.h"
+//#include "AdafruitIO_WiFi.h"
 
 //AdafruitIO_WiFi AdaIO(IO_USERNAME, IO_KEY, WIFI_SSID, WIFI_PASSWORD);

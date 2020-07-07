@@ -156,7 +156,7 @@ void deleteFile(fs::FS &fs, const char *path)
 void Refresh_SD(DateTime *RTCClk, BME_Sensor *SenVal)
 
 {
-
+/*
     String TimeStr = "";
 
     if (RTCClk->year() < 10)
@@ -222,6 +222,7 @@ void Refresh_SD(DateTime *RTCClk, BME_Sensor *SenVal)
     {
         Serial.println("File Error");
     }
+    */
     /*    
     // re-open the file for reading:
     myFile = SD.open("/datalog.txt");
@@ -241,8 +242,8 @@ void Refresh_SD(DateTime *RTCClk, BME_Sensor *SenVal)
     {
         // if the file didn't open, print an error:
         Serial.println("error opening");
-    }
-*/
+    }*/
+
 }
 
 /* examples
