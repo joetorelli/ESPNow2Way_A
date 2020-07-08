@@ -18,9 +18,6 @@ struct BME_Sensor
     float f_humidity = 0;
     float f_pressure = 0;
     float f_altitude = 0;
-    int Switch_A = 0;
-    int Switch_B = 0;
-    int Switch_C = 0;
 };
 
 struct OLED_SW
@@ -30,9 +27,29 @@ struct OLED_SW
     int Switch_C = 0;
 };
 
+struct LEDS
+{
+
+    int LED_R = 0;
+    int LED_L = 0;
+};
+
+struct Packet
+{
+    float f_temperature = 0;
+    float f_humidity = 0;
+    float f_pressure = 0;
+    float f_altitude = 0;
+    int Switch_A = 0;
+    int Switch_B = 0;
+    int Switch_C = 0;
+    int LED_R = 0;
+    int LED_L = 0;
+};
 // extern struct OLED_SW Switch_State;
 // extern struct BME_Sensor Sensor_Values;
 
 void ReadSensor(Adafruit_BME280 *Sensor, BME_Sensor *SenseVal);
 void ReadSwitches(OLED_SW *SwState);
+void LED_Indicator(LEDS *Ind);
 #endif

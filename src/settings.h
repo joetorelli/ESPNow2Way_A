@@ -13,7 +13,6 @@
 //#include "mqttController.h"
 //#include "SD_Card.h"
 
-#define SD_CS 33
 //#define UpdateLED 17
 //#define TouchLED 16
 //#define IFTTTLED 12
@@ -21,7 +20,7 @@
 //#define CALIBRATION_FILE "/TFT_Touch_CalData" //touch cal data in SPIFF
 #endif
 
-#define DEBUGLOG
+//#define DEBUGLOG
 
 #ifdef DEBUGLOG
 
@@ -36,6 +35,18 @@
 #define DEBUGPRINTLN(x)
 
 #endif
+/**********************************************
+  Pin Definitions
+**********************************************/
+
+// assign i2c pin numbers
+#define I2c_SDA 21 //21 for nodemcu32s   //23 for feather
+#define I2c_SCL 22
+
+#define SD_CS 33
+
+#define Remote_LED 25
+#define Local_LED 26
 
 #define BUTTON_A 15 //oled button
 #define BUTTON_B 32 //oled button

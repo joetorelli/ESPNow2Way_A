@@ -34,13 +34,6 @@
 #include <ezTime.h>
 #include <TaskScheduler.h>
 #include "RTClib.h"
-/**********************************************
-  Pin Definitions
-**********************************************/
-
-// assign i2c pin numbers
-#define I2c_SDA 21 //21 for nodemcu32s   //23 for feather
-#define I2c_SCL 22
 
 /*******************   oled display   ******************/
 // Declaration for an SSD1306 OLED_Display connected to I2C (SDA, SCL pins)
@@ -52,9 +45,14 @@ Adafruit_SSD1306 OLED_Display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 RTC_DS3231 rtc;
 DateTime RTCClock = rtc.now();
 Timezone CentralTZ;
-struct OLED_SW Switch_State;
+struct OLED_SW LocalSwitch;
+struct OLED_SW RemoteSwitch;
 struct BME_Sensor LocalReadings;
 struct BME_Sensor RemoteReadings;
+struct LEDS LocalLED;
+struct LEDS RemoteLED;
+struct Packet Transmit_Pkt;
+struct Packet Receive_Pkt;
 int Sw_A = 0;
 int Sw_B = 0;
 int Sw_C = 0;
@@ -134,9 +132,20 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
 // Callback when data is received
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
 {
-  memcpy(&RemoteReadings, incomingData, sizeof(RemoteReadings));
+  memcpy(&Receive_Pkt, incomingData, sizeof(Receive_Pkt));
   Serial.print("Bytes received: ");
   Serial.println(len);
+
+  RemoteReadings.f_temperature = Receive_Pkt.f_temperature;
+  RemoteReadings.f_humidity = Receive_Pkt.f_humidity;
+  RemoteReadings.f_pressure = Receive_Pkt.f_pressure;
+  RemoteReadings.f_altitude = Receive_Pkt.f_altitude;
+  RemoteSwitch.Switch_A = Receive_Pkt.Switch_A;
+  RemoteSwitch.Switch_B = Receive_Pkt.Switch_B;
+  RemoteSwitch.Switch_C = Receive_Pkt.Switch_C;
+  RemoteLED.LED_L = Receive_Pkt.LED_L;
+  LocalLED.LED_R = Receive_Pkt.LED_R;
+
   // incomingTemp = RemoteReadings.f_temperature;
   // incomingHum = RemoteReadings.f_humidity;
   // incomingPres = RemoteReadings.f_pressure;
@@ -184,6 +193,8 @@ void setup()
   pinMode(BUTTON_A, INPUT_PULLUP);
   pinMode(BUTTON_B, INPUT_PULLUP);
   pinMode(BUTTON_C, INPUT_PULLUP);
+  pinMode(Remote_LED, OUTPUT);
+  pinMode(Local_LED, OUTPUT);
 
   /**********************   wifi   ***********************/
 
@@ -473,10 +484,12 @@ void loop()
   //OLED_Display.setCursor(0, 0);
 
   DEBUGPRINTLN("Read switches");
-  ReadSwitches(&Switch_State);
-  Sw_A = LocalReadings.Switch_A;
-  Sw_B = LocalReadings.Switch_B;
-  Sw_C = LocalReadings.Switch_C;
+  ReadSwitches(&LocalSwitch);
+  // Sw_A = LocalReadings.Switch_A;
+  // Sw_B = LocalReadings.Switch_B;
+  // Sw_C = LocalReadings.Switch_C;
+  LED_Indicator(&LocalLED);
+
   /*
   DEBUGPRINTLN("Read Ping");
   SRFPing();
@@ -506,9 +519,18 @@ void loop()
   // LocalReadings.f_temperature = temperature;
   // LocalReadings.f_humidity = humidity;
   // LocalReadings.f_pressure = pressure;
+  Transmit_Pkt.f_temperature = LocalReadings.f_temperature;
+  Transmit_Pkt.f_humidity = LocalReadings.f_humidity;
+  Transmit_Pkt.f_pressure = LocalReadings.f_pressure;
+  Transmit_Pkt.f_altitude = LocalReadings.f_altitude;
+  Transmit_Pkt.Switch_A = LocalSwitch.Switch_A;
+  Transmit_Pkt.Switch_B = LocalSwitch.Switch_B;
+  Transmit_Pkt.Switch_C = LocalSwitch.Switch_C;
+  Transmit_Pkt.LED_L = RemoteLED.LED_L;
+  Transmit_Pkt.LED_R = LocalLED.LED_R;
 
   // Send message via ESP-NOW
-  esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *)&LocalReadings, sizeof(LocalReadings));
+  esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *)&Transmit_Pkt, sizeof(Transmit_Pkt));
 
   if (result == ESP_OK)
   {
@@ -518,6 +540,9 @@ void loop()
   {
     Serial.println("Error sending the data");
   }
+
+
+
   // updateDisplay();
   //delay(5000);
 }
@@ -568,7 +593,7 @@ void updateDisplay()
   //OLED_Display.print("hPa");
   OLED_Display.setCursor(0, 56);
   OLED_Display.print(ESPNOW_Success);
-  if (!Sw_A)
+  if (!Transmit_Pkt.Switch_A)
   {
     OLED_Display.print("*");
   }
