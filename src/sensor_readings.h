@@ -21,7 +21,8 @@ struct BME_Sensor
     float f_altitude = 0;
 };
 
-store the state of the switches struct OLED_SW
+//the state of the switches
+struct OLED_SW
 {
     int Switch_A = 0;
     int Switch_B = 0;
