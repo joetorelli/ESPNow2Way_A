@@ -39,38 +39,43 @@ Adafruit_SSD1306 OLED_Display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 /*******************  rtc  ***************************/
 //RTC_PCF8523 rtc;    //used on feather
 
-RTC_DS3231 rtc;
-DateTime RTCClock = rtc.now();
-Timezone CentralTZ;
-struct OLED_SW LocalSwitch;
-struct OLED_SW RemoteSwitch;
-struct BME_Sensor LocalReadings;
-struct BME_Sensor RemoteReadings;
-struct LEDS StatusLED;
+RTC_DS3231 rtc;                     //select rtc chip
+DateTime RTCClock = rtc.now();      //create clock obj
+Timezone CentralTZ;                 //describe timezone
+struct OLED_SW LocalSwitch;         //state of onboard switch
+struct OLED_SW RemoteSwitch;        //state of remote switch
+struct BME_Sensor LocalReadings;    //onboard enviro sensor reading
+struct BME_Sensor RemoteReadings;   //remote enviro sensors reading
+struct LEDS StatusLED;              //state of on board LED
 
-struct Packet Transmit_Pkt;
-struct Packet Receive_Pkt;
+struct Packet Transmit_Pkt;         //packet sent to remote
+struct Packet Receive_Pkt;          //packet received from remote
 
 /***********************   bme280 i2c sensor   **********/
-Adafruit_BME280 bme;
+Adafruit_BME280 bme;                //sensor obj
 // BME280_ADDRESS = 0x77
 // BME280_ADDRESS_ALTERNATE = 0x76
 
 /********  tasks callback functions  *********/
-void sensor_update();
-void clock_update();
-void SD_Update();
+// functions will be called by the task manager
+void sensor_update();               //get sensor readings
+void clock_update();                //get time
+void SD_Update();                   //store to SD card
+void updateDisplay();               //update oled run inside clock_update
+
 
 /***************  task scheduler  **************************/
-Task t1_Update(1000, TASK_FOREVER, &sensor_update); //can not pass vars with pointer in this function
+// named_task(run every ms, repeat, called function)
+ //can not pass vars with pointer in this function
+Task t1_Update(1000, TASK_FOREVER, &sensor_update);
 Task t2_clock(500, TASK_FOREVER, &clock_update);
 //Task t3_SDCard(10000, TASK_FOREVER, &SD_Update);
 //Task t5_indicators(2000, TASK_FOREVER, &indicators);
-Scheduler runner;
+Scheduler runner;                     //schrduler obj
 
 /*************************  srf08   ********************/
-struct SRFRanges SRFDist;
-int Light = 0;
+struct SRFRanges SRFDist;             //3 first returns
+int Light = 0;                        //light sensor value
 
 /*************************   esp_NOW   ******************************/
 
@@ -78,8 +83,8 @@ int Light = 0;
 uint8_t broadcastAddress[]{0x30, 0xAE, 0xA4, 0x46, 0xF0, 0xE4}; // Unit A = outside sender 1
 //uint8_t broadcastAddress[]{0xA4, 0xCF, 0x12, 0x0B, 0x2B, 0xB4}; // Unit B = outside sender 2
 
-String ESPNOW_Success;
-void updateDisplay();
+String ESPNOW_Success;                  //vars to hold connect string
+
 
 // Callback when data is sent
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
@@ -97,12 +102,14 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
 }
 
 // Callback when data is received
+//
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
 {
-  memcpy(&Receive_Pkt, incomingData, sizeof(Receive_Pkt));
+  memcpy(&Receive_Pkt, incomingData, sizeof(Receive_Pkt));        //move incomming data to Receive_Pkt
   Serial.print("Bytes received: ");
   Serial.println(len);
 
+  //move incomming packet to remote structures
   RemoteReadings.f_temperature = Receive_Pkt.f_temperature;
   RemoteReadings.f_humidity = Receive_Pkt.f_humidity;
   RemoteReadings.f_pressure = Receive_Pkt.f_pressure;
@@ -127,11 +134,12 @@ void setup()
 
   /************* set up task runner  *************/
   runner.init();
-  runner.addTask(t1_Update); //for sensors
-  runner.addTask(t2_clock);
-  //runner.addTask(t3_SDCard); //for SD card
-  t1_Update.enable(); //for sensors
-  t2_clock.enable();
+  runner.addTask(t1_Update);                  //for sensors
+  runner.addTask(t2_clock);                   // clock and display
+  //runner.addTask(t3_SDCard);                //for SD card
+
+  t1_Update.enable();                         //for sensors
+  t2_clock.enable();                          //for clock and display
   //t3_SDCard.enable(); //for SD card
 
   /********************* oled  ********************/
@@ -153,7 +161,7 @@ void setup()
   OLED_Display.setTextSize(1);
   OLED_Display.setTextColor(SSD1306_WHITE);
 
-  //buttons on OLED board
+  //buttons/LEDs on OLED board
   pinMode(BUTTON_A, INPUT_PULLUP);
   pinMode(BUTTON_B, INPUT_PULLUP);
   pinMode(BUTTON_C, INPUT_PULLUP);
@@ -196,20 +204,21 @@ void setup()
   // Register for a callback function that will be called when data is received
   esp_now_register_recv_cb(OnDataRecv);
 
+
+  //connect to wifi
   DEBUGPRINT("Connect to SSID: ");
   DEBUGPRINTLN(WIFI_SSID);
   DEBUGPRINT("Waiting for Network:");
 
   OLED_Display.setCursor(0, 0);
-  OLED_Display.println("Connecting to SSID:"); //line 1
-  OLED_Display.println(WIFI_SSID);             //line 2
+  OLED_Display.println("Connecting to SSID:");            //line 1
+  OLED_Display.println(WIFI_SSID);                        //line 2
   OLED_Display.print("Waiting for Network:");
   OLED_Display.println("");
   OLED_Display.display();
 
-  byte count = 0; //used for network and ntp timeout
+  byte count = 0;                                         //used for network and ntp timeout
 
-  //connect to wifi
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   //wait for connection
   while (WiFi.status() != WL_CONNECTED)
@@ -255,6 +264,8 @@ void setup()
   DEBUGPRINT("Waiting for NTP:");
   OLED_Display.setCursor(0, 0);
   OLED_Display.println("Waiting for NTP:");
+
+  //connection loop
   do
   {
     delay(500);
@@ -277,7 +288,7 @@ void setup()
       delay(1000);
       ESP.restart();
     }
-  } while (!waitForSync(1));
+  } while (!waitForSync(1));                      //sync from time server
 
   // get ntp time
   DEBUGPRINTLN("UTC: " + UTC.dateTime());
@@ -310,7 +321,7 @@ void setup()
     OLED_Display.clearDisplay();
     OLED_Display.print("Couldn't find RTC");
 
-    rtc.adjust(DateTime(Year, Month, Day, Hour, Min, Sec));
+    rtc.adjust(DateTime(Year, Month, Day, Hour, Min, Sec));           //set rtc to npt
     DEBUGPRINTLN("Clock Set");
     OLED_Display.print("RTC set to NTP");
     OLED_Display.display();
@@ -353,9 +364,9 @@ void setup()
   /**********  init i2c sensor  ************/
   OLED_Display.print("Init Sensor");
 
-  status = bme.begin(BME280_ADDRESS_ALTERNATE); // get status of sensor
+  status = bme.begin(BME280_ADDRESS_ALTERNATE);                       // get status of sensor
 
-  if (!status) // test status
+  if (!status)                                                        // test status
   {
     OLED_Display.print("Can't find BME280");
     DEBUGPRINTLN("Can't find BME280, it may have fell on the floor");
@@ -436,10 +447,8 @@ void loop()
 {
   // start task manager
   runner.execute();
-  //events();
 
-  // DEBUGPRINTLN("Read clock");
-  // RTCClock = rtc.now(); //read hardware clock
+  //events();
 
   // if (secondChanged())
   // {
@@ -457,6 +466,8 @@ void loop()
   Light = SRFLight();
   SRFDistance(&SRFDist);
 */
+
+//used with oled feather
   //DEBUGPRINTLN("Display Switches");
   //DisplaySwitches(&OLED_Display, &Switch_State);
 
@@ -474,7 +485,7 @@ void loop()
   //OLED_Display.display(); // update OLED_Display
   //delay(2000);
 
-
+  //move local structures  to remote packet
   Transmit_Pkt.f_temperature = LocalReadings.f_temperature;
   Transmit_Pkt.f_humidity = LocalReadings.f_humidity;
   Transmit_Pkt.f_pressure = LocalReadings.f_pressure;
@@ -512,7 +523,6 @@ void updateDisplay()
   OLED_Display.setCursor(0, 0);
   OLED_Display.setTextSize(1);
   OLED_Display.setTextColor(WHITE);
-  //OLED_Display.setCursor(0, 0);
   OLED_Display.print("      Lcl     Rmt");
   OLED_Display.setCursor(0, 15);
 
