@@ -12,6 +12,7 @@
 
 #define SEALEVELPRESSURE_HPA (1013.25)
 
+//store sensor values
 struct BME_Sensor
 {
     float f_temperature = 0;
@@ -20,13 +21,14 @@ struct BME_Sensor
     float f_altitude = 0;
 };
 
-struct OLED_SW
+store the state of the switches struct OLED_SW
 {
     int Switch_A = 0;
     int Switch_B = 0;
     int Switch_C = 0;
 };
 
+//store the status of leds
 struct LEDS
 {
 
@@ -34,6 +36,7 @@ struct LEDS
     int LED_L = 0;
 };
 
+//packet to transfer data
 struct Packet
 {
     float f_temperature = 0;
