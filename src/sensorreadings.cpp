@@ -4,7 +4,6 @@
 //#include "OLED.h"
 // //#include "mqttController.h"
 
-//BME_Sensor *ReadSensor(Adafruit_BME280 *bme) //, Adafruit_SSD1306 *OLED_Display)
 void ReadSensor(Adafruit_BME280 *Sensor, BME_Sensor *SenVal)
 {
 
@@ -13,15 +12,6 @@ void ReadSensor(Adafruit_BME280 *Sensor, BME_Sensor *SenVal)
     SenVal->f_humidity = Sensor->readHumidity();
     SenVal->f_pressure = Sensor->readPressure() / 100.0F;
     SenVal->f_altitude = Sensor->readAltitude(SEALEVELPRESSURE_HPA);
-
-    //     if (digitalRead(BUTTON_A) == 0)
-    // {
-    //    SenVal->Switch_A = LocalReadings.Switch_A;
-    // }
-    // else
-    // {
-    //     SenVal->Switch_A = 0;
-    // }
 
     DEBUGPRINTLN("ReadSensor: ");
     DEBUGPRINT("f_temp: ");

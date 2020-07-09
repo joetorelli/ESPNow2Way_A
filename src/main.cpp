@@ -19,10 +19,7 @@
 
 *************************************/
 
-// #include <Arduino.h>
-// #include <esp_now.h>
-// #include <WiFi.h>
-// #include "Wire.h"
+
 #include "NetWork.h"
 #include "SRF.h"
 #include "OLED.h"
@@ -80,8 +77,10 @@ int Light = 0;
 // MAC address of RECEIVER
 uint8_t broadcastAddress[]{0x30, 0xAE, 0xA4, 0x46, 0xF0, 0xE4}; // Unit A = outside sender 1
 //uint8_t broadcastAddress[]{0xA4, 0xCF, 0x12, 0x0B, 0x2B, 0xB4}; // Unit B = outside sender 2
+
 String ESPNOW_Success;
 void updateDisplay();
+
 // Callback when data is sent
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
 {
@@ -113,14 +112,12 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   RemoteSwitch.Switch_C = Receive_Pkt.Switch_C;
   StatusLED.LED_R = Receive_Pkt.LED;
 
-  // incomingTemp = RemoteReadings.f_temperature;
-  // incomingHum = RemoteReadings.f_humidity;
-  // incomingPres = RemoteReadings.f_pressure;
 }
 
 /***********************   setup   *********************/
 void setup()
 {
+
   Serial.begin(115200);
 
   /*********   init i2c  *********/
@@ -195,6 +192,7 @@ void setup()
     Serial.println("Failed to add peer");
     return;
   }
+
   // Register for a callback function that will be called when data is received
   esp_now_register_recv_cb(OnDataRecv);
 
@@ -448,13 +446,9 @@ void loop()
   //   //OLED_Display.clearDisplay();
   // }
 
-  //OLED_Display.setCursor(0, 0);
 
   DEBUGPRINTLN("Read switches");
   ReadSwitches(&LocalSwitch);
-  // Sw_A = LocalReadings.Switch_A;
-  // Sw_B = LocalReadings.Switch_B;
-  // Sw_C = LocalReadings.Switch_C;
   LED_Indicator(&StatusLED);
 
   /*
@@ -481,11 +475,6 @@ void loop()
   //delay(2000);
 
 
-
-  // // Set values to send
-  // LocalReadings.f_temperature = temperature;
-  // LocalReadings.f_humidity = humidity;
-  // LocalReadings.f_pressure = pressure;
   Transmit_Pkt.f_temperature = LocalReadings.f_temperature;
   Transmit_Pkt.f_humidity = LocalReadings.f_humidity;
   Transmit_Pkt.f_pressure = LocalReadings.f_pressure;
