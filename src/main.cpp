@@ -49,42 +49,11 @@ struct OLED_SW LocalSwitch;
 struct OLED_SW RemoteSwitch;
 struct BME_Sensor LocalReadings;
 struct BME_Sensor RemoteReadings;
-struct LEDS LocalLED;
-struct LEDS RemoteLED;
+struct LEDS StatusLED;
+
 struct Packet Transmit_Pkt;
 struct Packet Receive_Pkt;
-int Sw_A = 0;
-int Sw_B = 0;
-int Sw_C = 0;
 
-//esp now
-// Define variables to store BME280 readings to be sent
-// float temperature;
-// float humidity;
-// float pressure;
-
-// Define variables to store incoming readings
-// float incomingTemp;
-// float incomingHum;
-// float incomingPres;
-
-// Variable to store if sending data was successful
-// String success;
-
-//Structure example to send data
-//Must match the receiver structure
-// typedef struct struct_message
-// {
-//   float temp;
-//   float hum;
-//   float pres;
-// } struct_message;
-
-// Create a struct_message called BME280Readings to hold sensor readings
-//struct_message BME280Readings;
-
-// Create a struct_message to hold incoming sensor readings
-//struct_message RemoteReadings;
 /***********************   bme280 i2c sensor   **********/
 Adafruit_BME280 bme;
 // BME280_ADDRESS = 0x77
@@ -94,7 +63,6 @@ Adafruit_BME280 bme;
 void sensor_update();
 void clock_update();
 void SD_Update();
-void getReadings();
 
 /***************  task scheduler  **************************/
 Task t1_Update(1000, TASK_FOREVER, &sensor_update); //can not pass vars with pointer in this function
@@ -143,8 +111,7 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   RemoteSwitch.Switch_A = Receive_Pkt.Switch_A;
   RemoteSwitch.Switch_B = Receive_Pkt.Switch_B;
   RemoteSwitch.Switch_C = Receive_Pkt.Switch_C;
-  RemoteLED.LED_L = Receive_Pkt.LED_L;
-  LocalLED.LED_R = Receive_Pkt.LED_R;
+  StatusLED.LED_R = Receive_Pkt.LED;
 
   // incomingTemp = RemoteReadings.f_temperature;
   // incomingHum = RemoteReadings.f_humidity;
@@ -193,8 +160,8 @@ void setup()
   pinMode(BUTTON_A, INPUT_PULLUP);
   pinMode(BUTTON_B, INPUT_PULLUP);
   pinMode(BUTTON_C, INPUT_PULLUP);
-  pinMode(Remote_LED, OUTPUT);
-  pinMode(Local_LED, OUTPUT);
+  pinMode(Remote_LED_Pin, OUTPUT);
+  pinMode(Local_LED_Pin, OUTPUT);
 
   /**********************   wifi   ***********************/
 
@@ -488,7 +455,7 @@ void loop()
   // Sw_A = LocalReadings.Switch_A;
   // Sw_B = LocalReadings.Switch_B;
   // Sw_C = LocalReadings.Switch_C;
-  LED_Indicator(&LocalLED);
+  LED_Indicator(&StatusLED);
 
   /*
   DEBUGPRINTLN("Read Ping");
@@ -513,7 +480,7 @@ void loop()
   //OLED_Display.display(); // update OLED_Display
   //delay(2000);
 
-  // getReadings();
+
 
   // // Set values to send
   // LocalReadings.f_temperature = temperature;
@@ -526,8 +493,8 @@ void loop()
   Transmit_Pkt.Switch_A = LocalSwitch.Switch_A;
   Transmit_Pkt.Switch_B = LocalSwitch.Switch_B;
   Transmit_Pkt.Switch_C = LocalSwitch.Switch_C;
-  Transmit_Pkt.LED_L = RemoteLED.LED_L;
-  Transmit_Pkt.LED_R = LocalLED.LED_R;
+  Transmit_Pkt.LED = StatusLED.LED_L;
+  
 
   // Send message via ESP-NOW
   esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *)&Transmit_Pkt, sizeof(Transmit_Pkt));
@@ -541,24 +508,13 @@ void loop()
     Serial.println("Error sending the data");
   }
 
-
-
   // updateDisplay();
   //delay(5000);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 
-void getReadings()
-{
-  // temperature = bme.readTemperature();
-  // humidity = bme.readHumidity();
-  // pressure = (bme.readPressure() / 100.0F);
-  //     DEBUGPRINTLN("getReadings: ");
-  //   DEBUGPRINT("temp: "); DEBUGPRINTLN(temperature);
-  //   DEBUGPRINT("humid: "); DEBUGPRINTLN(humidity);
-  //   DEBUGPRINT("pres: "); DEBUGPRINTLN(pressure);
-}
+
 
 void updateDisplay()
 {

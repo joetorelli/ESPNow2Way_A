@@ -43,8 +43,7 @@ struct Packet
     int Switch_A = 0;
     int Switch_B = 0;
     int Switch_C = 0;
-    int LED_R = 0;
-    int LED_L = 0;
+    int LED = 0;
 };
 // extern struct OLED_SW Switch_State;
 // extern struct BME_Sensor Sensor_Values;

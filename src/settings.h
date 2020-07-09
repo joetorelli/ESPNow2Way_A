@@ -45,8 +45,8 @@
 
 #define SD_CS 33
 
-#define Remote_LED 25
-#define Local_LED 26
+#define Remote_LED_Pin 25
+#define Local_LED_Pin 26
 
 #define BUTTON_A 15 //oled button
 #define BUTTON_B 32 //oled button

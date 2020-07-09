@@ -71,30 +71,27 @@ void ReadSwitches(OLED_SW *SwState) //Adafruit_SSD1306 *OLED_Display)
 
 void LED_Indicator(LEDS *Ind)
 {
-   if (digitalRead(BUTTON_A) == 0)
+    if (digitalRead(BUTTON_A))
     {
-        digitalWrite(Local_LED, 1);
+        digitalWrite(Local_LED_Pin, 1);
         Ind->LED_L = 1;
         Serial.println("Local LED ON");
     }
     else
     {
-        digitalWrite(Local_LED, 0);
+        digitalWrite(Local_LED_Pin, 0);
         Ind->LED_L = 0;
         Serial.println("Local LED OFF");
     }
 
-
-if (Ind->LED_R)
-{
-    digitalWrite(Remote_LED, 1);
-    Serial.println("Remote LED ON");
-}
-else
-{
-    digitalWrite(Remote_LED, 0);
-    Serial.println("Remote LED OFF");
-}
-
-
+    if (Ind->LED_R)
+    {
+        digitalWrite(Remote_LED_Pin, 1);
+        Serial.println("Remote LED ON");
+    }
+    else
+    {
+        digitalWrite(Remote_LED_Pin, 0);
+        Serial.println("Remote LED OFF");
+    }
 }
