@@ -1,36 +1,88 @@
 /*************************************
-   adafruit feather esp32, works with nodemcu32s
-   
-   adalogger SDcard, PCF8523 RTC, 
-   DS3231 RTC for esp, rtclib works for both
-   
-   eztime for ntp and time functions
-   taskScheduler-timer to run tasks
-   
-   OLED feather wing 128x32, also tried 128x64 on esp
-   Added srf08, Added BME280
-   
-   adding esp_now
+adafruit feather esp32
+    
+  adalogger SDcard - RTC clock and SD card 
+    PCF8523 (I2C) RTC on Feather - working
+    SD (SPI) - working
 
-   need to add switches and analog input
+  OLED feather wing 128x32(I2C) - working
+
+  Motor Control Wing (PWM)- working
+    1 stepper or 2 DC motor
+
+  Current Sensor Wing (I2C)- working 
+
+  Added BME280 (I2C)- Working
+    put on Current Monitor Feather
+
+  switches - working
+
+  eztime - working
+    for ntp and time functions
+    read on startup and set RTC
+    
+  taskScheduler-timer to run tasks
+
+  esp_now - working
+    sending packet back and forth
+
+nodemcu32s
+
+  128x64 OLED (I2C)- working
+  added DS3231 (I2C) RTC - rtclib works for both - working
+
+  SD card ****TBD
+
+  Motor Control ****TBD
+
+  srf08 (I2C)- working
+    reads first 3 ranges
+    prints out first
+    also reads ambient light
+
+  BME280 (I2C)- working
+
+  switches working
+    press awitch and led on other board lights
+
+  analog input working
+    Used LDR analog input to control PWM Out
+
+  PWM working
+    Controlled LED by LDR input
+
+  eztime - 
+    for ntp and time functions
+    read on startup to update RTC
+
+  taskScheduler - working
+    timer to run task
+  
+  esp_now working
+    sending packet back and forth
 
 
-   purpose: turd control, log data, remote sensing
+From TechExplore 
+  ESP for busy people
+  ESP Unleashed
+
+purpose: turd control, log data, remote sensing
 
 *************************************/
 
-
 #include "NetWork.h"
-#include "SRF.h"
-#include "OLED.h"
 #include "settings.h"        // The order is important!
 #include "sensor_readings.h" // The order is important!
 #include "network_config.h"
 
+#include "OLED.h"
+#include "RTClib.h"
 #include "SD_Card.h"
+#include "SRF.h"
+
 #include <ezTime.h>
 #include <TaskScheduler.h>
-#include "RTClib.h"
+
 
 /*******************   oled display   ******************/
 // Declaration for an SSD1306 OLED_Display connected to I2C (SDA, SCL pins)
@@ -39,44 +91,42 @@ Adafruit_SSD1306 OLED_Display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 /*******************  rtc  ***************************/
 //RTC_PCF8523 rtc;    //used on feather
 
-RTC_DS3231 rtc;                     //select rtc chip
-DateTime RTCClock = rtc.now();      //create clock obj
-Timezone CentralTZ;                 //describe timezone
-struct OLED_SW LocalSwitch;         //state of onboard switch
-struct OLED_SW RemoteSwitch;        //state of remote switch
-struct BME_Sensor LocalReadings;    //onboard enviro sensor reading
-struct BME_Sensor RemoteReadings;   //remote enviro sensors reading
-struct LEDS StatusLED;              //state of on board LED
+RTC_DS3231 rtc;                   //select rtc chip  nodemcu32s
+DateTime RTCClock = rtc.now();    //create clock obj
+Timezone CentralTZ;               //describe timezone
+struct OLED_SW LocalSwitch;       //state of onboard switch
+struct OLED_SW RemoteSwitch;      //state of remote switch
+struct BME_Sensor LocalReadings;  //onboard enviro sensor reading
+struct BME_Sensor RemoteReadings; //remote enviro sensors reading
+struct LEDS StatusLED;            //state of on board LED
 
-struct Packet Transmit_Pkt;         //packet sent to remote
-struct Packet Receive_Pkt;          //packet received from remote
+struct Packet Transmit_Pkt;       //packet sent to remote
+struct Packet Receive_Pkt;        //packet received from remote
 
 /***********************   bme280 i2c sensor   **********/
-Adafruit_BME280 bme;                //sensor obj
+Adafruit_BME280 bme;              //sensor obj
 // BME280_ADDRESS = 0x77
 // BME280_ADDRESS_ALTERNATE = 0x76
 
 /********  tasks callback functions  *********/
 // functions will be called by the task manager
-void sensor_update();               //get sensor readings
-void clock_update();                //get time
-void SD_Update();                   //store to SD card
-void updateDisplay();               //update oled run inside clock_update
-
+void sensor_update();             //get sensor readings
+void clock_update();              //get time
+void SD_Update();                 //store to SD card
+void updateDisplay();             //update oled run inside clock_update
 
 /***************  task scheduler  **************************/
 // named_task(run every ms, repeat, called function)
- //can not pass vars with pointer in this function
+//can not pass vars with pointer in this function
 Task t1_Update(1000, TASK_FOREVER, &sensor_update);
 Task t2_clock(500, TASK_FOREVER, &clock_update);
 //Task t3_SDCard(10000, TASK_FOREVER, &SD_Update);
 //Task t5_indicators(2000, TASK_FOREVER, &indicators);
-Scheduler runner;                     //schrduler obj
+Scheduler runner;                 //schrduler obj
 
 /*************************  srf08   ********************/
-struct SRFRanges SRFDist;             //3 first returns
-int Light = 0;                        //light sensor value
-
+struct SRFRanges SRFDist;         //3 first returns
+int Light = 0;                    //light sensor value
 
 /************************   analog control   ***************************/
 const byte LightSensorPin = 36;
@@ -89,8 +139,7 @@ const byte PWMChannel = 0;
 uint8_t broadcastAddress[]{0x30, 0xAE, 0xA4, 0x46, 0xF0, 0xE4}; // Unit A = outside sender 1
 //uint8_t broadcastAddress[]{0xA4, 0xCF, 0x12, 0x0B, 0x2B, 0xB4}; // Unit B = outside sender 2
 
-String ESPNOW_Success;                  //vars to hold connect string
-
+String ESPNOW_Success;              //vars to hold connect string
 
 // Callback when data is sent
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
@@ -111,7 +160,7 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
 //
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
 {
-  memcpy(&Receive_Pkt, incomingData, sizeof(Receive_Pkt));        //move incomming data to Receive_Pkt
+  memcpy(&Receive_Pkt, incomingData, sizeof(Receive_Pkt));  //move incomming data to Receive_Pkt
   Serial.print("Bytes received: ");
   Serial.println(len);
 
@@ -124,7 +173,6 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   RemoteSwitch.Switch_B = Receive_Pkt.Switch_B;
   RemoteSwitch.Switch_C = Receive_Pkt.Switch_C;
   StatusLED.LED_R = Receive_Pkt.LED;
-
 }
 
 /***********************   setup   *********************/
@@ -135,15 +183,13 @@ void setup()
 
   /*********   init i2c  *********/
   Wire.begin(I2c_SDA, I2c_SCL);
-  bool status; // connect status
+  bool status;                                // connect status
   DEBUGPRINTLN("I2C INIT OK");
 
-
   /**************   analog control   ***************/
+  ledcAttachPin(LEDPWMPin, PWMChannel);
+  ledcSetup(PWMChannel, 400, 12);
 
-  ledcAttachPin(LEDPWMPin,PWMChannel);
-
-  ledcSetup(PWMChannel,400,12);       
   /************* set up task runner  *************/
   runner.init();
   runner.addTask(t1_Update);                  //for sensors
@@ -216,22 +262,22 @@ void setup()
   // Register for a callback function that will be called when data is received
   esp_now_register_recv_cb(OnDataRecv);
 
-
   //connect to wifi
   DEBUGPRINT("Connect to SSID: ");
   DEBUGPRINTLN(WIFI_SSID);
   DEBUGPRINT("Waiting for Network:");
 
   OLED_Display.setCursor(0, 0);
-  OLED_Display.println("Connecting to SSID:");            //line 1
-  OLED_Display.println(WIFI_SSID);                        //line 2
+  OLED_Display.println("Connecting to SSID:"); //line 1
+  OLED_Display.println(WIFI_SSID);             //line 2
   OLED_Display.print("Waiting for Network:");
   OLED_Display.println("");
   OLED_Display.display();
 
-  byte count = 0;                                         //used for network and ntp timeout
+  byte count = 0;                         //used for network and ntp timeout
 
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
   //wait for connection
   while (WiFi.status() != WL_CONNECTED)
   {
@@ -240,7 +286,8 @@ void setup()
     count++;
     OLED_Display.print(".");
     OLED_Display.display();
-    if (!digitalRead(BUTTON_A)) //bypass wifi if button pressed
+
+    if (!digitalRead(BUTTON_A))           //bypass wifi if button pressed
     {
       count = 0;
       break;
@@ -300,7 +347,7 @@ void setup()
       delay(1000);
       ESP.restart();
     }
-  } while (!waitForSync(1));                      //sync from time server
+  } while (!waitForSync(1));                            //sync from time server
 
   // get ntp time
   DEBUGPRINTLN("UTC: " + UTC.dateTime());
@@ -333,7 +380,7 @@ void setup()
     OLED_Display.clearDisplay();
     OLED_Display.print("Couldn't find RTC");
 
-    rtc.adjust(DateTime(Year, Month, Day, Hour, Min, Sec));           //set rtc to npt
+    rtc.adjust(DateTime(Year, Month, Day, Hour, Min, Sec)); //set rtc to npt
     DEBUGPRINTLN("Clock Set");
     OLED_Display.print("RTC set to NTP");
     OLED_Display.display();
@@ -376,9 +423,10 @@ void setup()
   /**********  init i2c sensor  ************/
   OLED_Display.print("Init Sensor");
 
-  status = bme.begin(BME280_ADDRESS_ALTERNATE);                       // get status of sensor
+  // get status of sensor
+  status = bme.begin(BME280_ADDRESS_ALTERNATE);     
 
-  if (!status)                                                        // test status
+  if (!status)            // test status
   {
     OLED_Display.print("Can't find BME280");
     DEBUGPRINTLN("Can't find BME280, it may have fell on the floor");
@@ -458,7 +506,7 @@ void setup()
 void loop()
 {
   // start task manager
-  //runner.execute();
+  //////////////////////////runner.execute();
 
   //events();
 
@@ -466,7 +514,6 @@ void loop()
   // {
   //   //OLED_Display.clearDisplay();
   // }
-
 
   //DEBUGPRINTLN("Read switches");
   //ReadSwitches(&LocalSwitch);
@@ -478,12 +525,12 @@ void loop()
   ledcWrite(PWMChannel, analogRead(LightSensorPin));
   /*
   DEBUGPRINTLN("Read Ping");
-  SRFPing();
-  Light = SRFLight();
-  SRFDistance(&SRFDist);
+  //SRFPing();
+  //Light = SRFLight();
+  //SRFDistance(&SRFDist);
 */
 
-//used with oled feather
+  //used with oled feather
   //DEBUGPRINTLN("Display Switches");
   //DisplaySwitches(&OLED_Display, &Switch_State);
 
@@ -510,7 +557,6 @@ void loop()
   Transmit_Pkt.Switch_B = LocalSwitch.Switch_B;
   Transmit_Pkt.Switch_C = LocalSwitch.Switch_C;
   Transmit_Pkt.LED = StatusLED.LED_L;
-  
 
   // Send message via ESP-NOW
   esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *)&Transmit_Pkt, sizeof(Transmit_Pkt));
@@ -529,8 +575,6 @@ void loop()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
-
-
 
 void updateDisplay()
 {
