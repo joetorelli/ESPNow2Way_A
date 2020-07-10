@@ -77,6 +77,12 @@ Scheduler runner;                     //schrduler obj
 struct SRFRanges SRFDist;             //3 first returns
 int Light = 0;                        //light sensor value
 
+
+/************************   analog control   ***************************/
+const byte LightSensorPin = 36;
+const byte LEDPWMPin = 33;
+const byte PWMChannel = 0;
+
 /*************************   esp_NOW   ******************************/
 
 // MAC address of RECEIVER
@@ -132,6 +138,12 @@ void setup()
   bool status; // connect status
   DEBUGPRINTLN("I2C INIT OK");
 
+
+  /**************   analog control   ***************/
+
+  ledcAttachPin(LEDPWMPin,PWMChannel);
+
+  ledcSetup(PWMChannel,400,12);       
   /************* set up task runner  *************/
   runner.init();
   runner.addTask(t1_Update);                  //for sensors
@@ -446,7 +458,7 @@ void setup()
 void loop()
 {
   // start task manager
-  runner.execute();
+  //runner.execute();
 
   //events();
 
@@ -456,10 +468,14 @@ void loop()
   // }
 
 
-  DEBUGPRINTLN("Read switches");
-  ReadSwitches(&LocalSwitch);
-  LED_Indicator(&StatusLED);
+  //DEBUGPRINTLN("Read switches");
+  //ReadSwitches(&LocalSwitch);
+  //LED_Indicator(&StatusLED);
 
+  //analog control
+  Serial.print("Analog LightInput: ");
+  Serial.println(analogRead(LightSensorPin));
+  ledcWrite(PWMChannel, analogRead(LightSensorPin));
   /*
   DEBUGPRINTLN("Read Ping");
   SRFPing();
@@ -501,15 +517,15 @@ void loop()
 
   if (result == ESP_OK)
   {
-    Serial.println("Sent data with success");
+    //Serial.println("Sent data with success");
   }
   else
   {
-    Serial.println("Error sending the data");
+    //Serial.println("Error sending the data");
   }
 
   // updateDisplay();
-  //delay(5000);
+  delay(1000);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
