@@ -91,10 +91,9 @@ Adafruit_SSD1306 OLED_Display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 /*******************  rtc  ***************************/
 //RTC_PCF8523 rtc;    //used on feather
 
-RTC_DS3231 rtc;                   //select rtc chip  nodemcu32s
-DateTime RTCClock = rtc.now();    //create clock obj
-Timezone CentralTZ;               //describe timezone
-
+RTC_DS3231 rtc;                //select rtc chip  nodemcu32s
+DateTime RTCClock = rtc.now(); //create clock obj
+Timezone CentralTZ;            //describe timezone
 
 /***********************   bme280 i2c sensor   **********/
 Adafruit_BME280 bme; //sensor obj
@@ -111,9 +110,9 @@ const byte LEDPWMPin = 33;
 const byte PWMChannel = 0;
 //int AnalogValue = 0;
 
-
 /*************************  TOF VL53L0X   *************/
 Adafruit_VL53L0X lox = Adafruit_VL53L0X();
+VL53L0X_RangingMeasurementData_t measure;
 
 /*****************   structures   **************************/
 struct OLED_SW LocalSwitch;       //state of onboard switch
@@ -125,8 +124,6 @@ struct AnalogControl PWMControl;
 
 struct Packet Transmit_Pkt; //packet sent to remote
 struct Packet Receive_Pkt;  //packet received from remote
-
-
 
 /********  tasks callback functions  *********/
 // functions will be called by the task manager
@@ -143,7 +140,6 @@ Task t2_clock(500, TASK_FOREVER, &clock_update);
 //Task t3_SDCard(10000, TASK_FOREVER, &SD_Update);
 //Task t5_indicators(2000, TASK_FOREVER, &indicators);
 Scheduler runner; //schrduler obj
-
 
 /*************************   esp_NOW   ******************************/
 
@@ -203,7 +199,6 @@ void setup()
   ledcAttachPin(LEDPWMPin, PWMChannel);
   ledcSetup(PWMChannel, 400, 12); //set to 12 so analog read and pwm is same bit width
 
-
   /********************* oled  ********************/
   // SSD1306_SWITCHCAPVCC = generate OLED_Display voltage from 3.3V internally
   if (!OLED_Display.begin(SSD1306_SWITCHCAPVCC, 0x3c)) // Address 0x3C for 128x32
@@ -223,7 +218,7 @@ void setup()
   OLED_Display.setTextSize(1);
   OLED_Display.setTextColor(SSD1306_WHITE);
 
- /**********  init i2c temp sensor  ************/
+  /**********  init i2c temp sensor  ************/
   OLED_Display.print("Init Sensor");
 
   // get status of sensor
@@ -305,11 +300,13 @@ void setup()
 
   /*****************************   TOF VL53L0X   ******************************/
   Serial.println("Adafruit VL53L0X test");
-  if (!lox.begin()) {
+  if (!lox.begin())
+  {
     Serial.println(F("Failed to boot VL53L0X"));
-    while(1);
+    while (1)
+      ;
   }
-  // power 
+  // power
 
   /************************   switches and leds   ******************************/
   pinMode(BUTTON_A, INPUT_PULLUP);
@@ -521,12 +518,8 @@ void setup()
   t2_clock.enable();  //for clock and display
   //t3_SDCard.enable(); //for SD card
 
-
-
   //stop asking for internet ntp time
   void setInterval(uint16_t seconds = 0);
-
- 
 
   //delay(1000);
 }
@@ -555,17 +548,19 @@ void loop()
   DEBUGPRINTLN(PWMControl.PWM_Local);
   ledcWrite(PWMChannel, PWMControl.PWM_Remote);
 
-  VL53L0X_RangingMeasurementData_t measure;
-    
+  // time of flight
   Serial.print("Reading a measurement... ");
   lox.rangingTest(&measure, false); // pass in 'true' to get debug data printout!
 
-  if (measure.RangeStatus != 4) {  // phase failures have incorrect data
-    Serial.print("Distance (mm): "); Serial.println(measure.RangeMilliMeter);
-  } else {
+  if (measure.RangeStatus != 4)
+  { // phase failures have incorrect data
+    Serial.print("Distance (mm): ");
+    Serial.println(measure.RangeMilliMeter);
+  }
+  else
+  {
     Serial.println(" out of range ");
   }
-
 
   /*
   DEBUGPRINTLN("Read Ping");
