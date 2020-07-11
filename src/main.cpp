@@ -79,10 +79,10 @@ purpose: turd control, log data, remote sensing
 #include "RTClib.h"
 #include "SD_Card.h"
 #include "SRF.h"
+#include "Adafruit_VL53L0X.h"
 
 #include <ezTime.h>
 #include <TaskScheduler.h>
-
 
 /*******************   oled display   ******************/
 // Declaration for an SSD1306 OLED_Display connected to I2C (SDA, SCL pins)
@@ -94,6 +94,28 @@ Adafruit_SSD1306 OLED_Display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 RTC_DS3231 rtc;                   //select rtc chip  nodemcu32s
 DateTime RTCClock = rtc.now();    //create clock obj
 Timezone CentralTZ;               //describe timezone
+
+
+/***********************   bme280 i2c sensor   **********/
+Adafruit_BME280 bme; //sensor obj
+// BME280_ADDRESS = 0x77
+// BME280_ADDRESS_ALTERNATE = 0x76
+
+/*************************  srf08   ********************/
+struct SRFRanges SRFDist; //3 first returns
+int Light = 0;            //light sensor value
+
+/************************   analog control   ***************************/
+const byte LightSensorPin = 36;
+const byte LEDPWMPin = 33;
+const byte PWMChannel = 0;
+//int AnalogValue = 0;
+
+
+/*************************  TOF VL53L0X   *************/
+Adafruit_VL53L0X lox = Adafruit_VL53L0X();
+
+/*****************   structures   **************************/
 struct OLED_SW LocalSwitch;       //state of onboard switch
 struct OLED_SW RemoteSwitch;      //state of remote switch
 struct BME_Sensor LocalReadings;  //onboard enviro sensor reading
@@ -101,20 +123,17 @@ struct BME_Sensor RemoteReadings; //remote enviro sensors reading
 struct LEDS StatusLED;            //state of on board LED
 struct AnalogControl PWMControl;
 
-struct Packet Transmit_Pkt;       //packet sent to remote
-struct Packet Receive_Pkt;        //packet received from remote
+struct Packet Transmit_Pkt; //packet sent to remote
+struct Packet Receive_Pkt;  //packet received from remote
 
-/***********************   bme280 i2c sensor   **********/
-Adafruit_BME280 bme;              //sensor obj
-// BME280_ADDRESS = 0x77
-// BME280_ADDRESS_ALTERNATE = 0x76
+
 
 /********  tasks callback functions  *********/
 // functions will be called by the task manager
-void sensor_update();             //get sensor readings
-void clock_update();              //get time
-void SD_Update();                 //store to SD card
-void updateDisplay();             //update oled run inside clock_update
+void sensor_update(); //get sensor readings
+void clock_update();  //get time
+void SD_Update();     //store to SD card
+void updateDisplay(); //update oled run inside clock_update
 
 /***************  task scheduler  **************************/
 // named_task(run every ms, repeat, called function)
@@ -123,24 +142,16 @@ Task t1_Update(1000, TASK_FOREVER, &sensor_update);
 Task t2_clock(500, TASK_FOREVER, &clock_update);
 //Task t3_SDCard(10000, TASK_FOREVER, &SD_Update);
 //Task t5_indicators(2000, TASK_FOREVER, &indicators);
-Scheduler runner;                 //schrduler obj
+Scheduler runner; //schrduler obj
 
-/*************************  srf08   ********************/
-struct SRFRanges SRFDist;         //3 first returns
-int Light = 0;                    //light sensor value
 
-/************************   analog control   ***************************/
-const byte LightSensorPin = 36;
-const byte LEDPWMPin = 33;
-const byte PWMChannel = 0;
-//int AnalogValue = 0;
 /*************************   esp_NOW   ******************************/
 
 // MAC address of RECEIVER
 //uint8_t broadcastAddress[]{0x30, 0xAE, 0xA4, 0x46, 0xF0, 0xE4}; // Unit A = outside sender 1
 uint8_t broadcastAddress[]{0xA4, 0xCF, 0x12, 0x0B, 0x2B, 0xB4}; // Unit B = outside sender 2
 
-String ESPNOW_Success;              //vars to hold connect string
+String ESPNOW_Success; //vars to hold connect string
 
 // Callback when data is sent
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
@@ -161,7 +172,7 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
 //
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
 {
-  memcpy(&Receive_Pkt, incomingData, sizeof(Receive_Pkt));  //move incomming data to Receive_Pkt
+  memcpy(&Receive_Pkt, incomingData, sizeof(Receive_Pkt)); //move incomming data to Receive_Pkt
   Serial.print("Bytes received: ");
   Serial.println(len);
 
@@ -175,7 +186,6 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   RemoteSwitch.Switch_C = Receive_Pkt.Switch_C;
   StatusLED.LED_Remote = Receive_Pkt.LED;
   PWMControl.PWM_Remote = Receive_Pkt.PWMValue;
-  
 }
 
 /***********************   setup   *********************/
@@ -186,22 +196,13 @@ void setup()
 
   /*********   init i2c  *********/
   Wire.begin(I2c_SDA, I2c_SCL);
-  bool status;                                // connect status
+  bool status; // connect status
   DEBUGPRINTLN("I2C INIT OK");
 
   /**************   analog control   ***************/
   ledcAttachPin(LEDPWMPin, PWMChannel);
-  ledcSetup(PWMChannel, 400, 12);                   //set to 12 so analog read and pwm is same bit width
+  ledcSetup(PWMChannel, 400, 12); //set to 12 so analog read and pwm is same bit width
 
-  /************* set up task runner  *************/
-  runner.init();
-  runner.addTask(t1_Update);                  //for sensors
-  runner.addTask(t2_clock);                   // clock and display
-  //runner.addTask(t3_SDCard);                //for SD card
-
-  t1_Update.enable();                         //for sensors
-  t2_clock.enable();                          //for clock and display
-  //t3_SDCard.enable(); //for SD card
 
   /********************* oled  ********************/
   // SSD1306_SWITCHCAPVCC = generate OLED_Display voltage from 3.3V internally
@@ -222,214 +223,13 @@ void setup()
   OLED_Display.setTextSize(1);
   OLED_Display.setTextColor(SSD1306_WHITE);
 
-  //buttons/LEDs on OLED board
-  pinMode(BUTTON_A, INPUT_PULLUP);
-  pinMode(BUTTON_B, INPUT_PULLUP);
-  pinMode(BUTTON_C, INPUT_PULLUP);
-  pinMode(Remote_LED_Pin, OUTPUT);
-  pinMode(Local_LED_Pin, OUTPUT);
-
-  /**********************   wifi   ***********************/
-
-  // Set device as a Wi-Fi Station
-  WiFi.mode(WIFI_STA);
-
-  // Init ESP-NOW
-  if (esp_now_init() != ESP_OK)
-  {
-    Serial.println("Error initializing ESP-NOW");
-    return;
-  }
-  else
-  {
-    Serial.println("initi ESP-NOW OK");
-  }
-
-  // Once ESPNow is successfully Init, we will register for Send CB to
-  // get the status of Trasnmitted packet
-  esp_now_register_send_cb(OnDataSent);
-
-  // Register peer
-  esp_now_peer_info_t peerInfo;
-  memcpy(peerInfo.peer_addr, broadcastAddress, 6);
-  peerInfo.channel = 0;
-  peerInfo.encrypt = false;
-
-  // Add peer
-  if (esp_now_add_peer(&peerInfo) != ESP_OK)
-  {
-    Serial.println("Failed to add peer");
-    return;
-  }
-
-  // Register for a callback function that will be called when data is received
-  esp_now_register_recv_cb(OnDataRecv);
-
-  //connect to wifi
-  DEBUGPRINT("Connect to SSID: ");
-  DEBUGPRINTLN(WIFI_SSID);
-  DEBUGPRINT("Waiting for Network:");
-
-  OLED_Display.setCursor(0, 0);
-  OLED_Display.println("Connecting to SSID:"); //line 1
-  OLED_Display.println(WIFI_SSID);             //line 2
-  OLED_Display.print("Waiting for Network:");
-  OLED_Display.println("");
-  OLED_Display.display();
-
-  byte count = 0;                         //used for network and ntp timeout
-
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  //wait for connection
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    DEBUGPRINT(".");
-    count++;
-    OLED_Display.print(".");
-    OLED_Display.display();
-
-    if (!digitalRead(BUTTON_A))           //bypass wifi if button pressed
-    {
-      count = 0;
-      break;
-    }
-
-    if (count > 20) //if not connected reboot
-    {
-      OLED_Display.clearDisplay();
-      OLED_Display.display();
-      OLED_Display.print("Time out Restarting");
-      OLED_Display.display();
-      delay(1000);
-      ESP.restart();
-    }
-  }
-
-  DEBUGPRINTLN("");
-  DEBUGPRINTLN("WIFI Connected");
-  DEBUGPRINT("IP ADR:");
-  DEBUGPRINTLN(WiFi.localIP());
-
-  //display connection on oled
-  OLED_Display.println(""); //line 3
-  OLED_Display.print("Connected");
-  OLED_Display.println("IP:");
-  OLED_Display.print(WiFi.localIP());
-  OLED_Display.display();
-  delay(500);
-  OLED_Display.clearDisplay();
-  OLED_Display.display();
-
-  // *********************  ntp   *****************
-  DEBUGPRINT("Waiting for NTP:");
-  OLED_Display.setCursor(0, 0);
-  OLED_Display.println("Waiting for NTP:");
-
-  //connection loop
-  do
-  {
-    delay(500);
-    count++;
-    DEBUGPRINT(".");
-    OLED_Display.print(".");
-    OLED_Display.display();
-
-    if (!digitalRead(BUTTON_A)) //bypass wifi if button pressed
-    {
-      count = 0;
-      break;
-    }
-
-    if (count > 20) //if not connected reboot
-    {
-      OLED_Display.clearDisplay();
-      OLED_Display.print("Time out Restarting");
-      OLED_Display.display();
-      delay(1000);
-      ESP.restart();
-    }
-  } while (!waitForSync(1));                            //sync from time server
-
-  // get ntp time
-  DEBUGPRINTLN("UTC: " + UTC.dateTime());
-  CentralTZ.setLocation("America/Chicago");
-  String NTPTime = CentralTZ.dateTime("Y/M/d H:i:s");
-  DEBUGPRINTLN("NTP: " + NTPTime);
-  OLED_Display.println();
-  OLED_Display.println(NTPTime);
-
-  /*******************  rtc  **************************/
-  //convert string from ntp to int for rtc
-  String Y = CentralTZ.dateTime("Y");
-  int Year = Y.toInt();
-  String M = CentralTZ.dateTime("m");
-  int Month = M.toInt();
-  String D = CentralTZ.dateTime("d");
-  int Day = D.toInt();
-  String H = CentralTZ.dateTime("H");
-  int Hour = H.toInt();
-  String m = CentralTZ.dateTime("i");
-  int Min = m.toInt();
-  String S = CentralTZ.dateTime("s");
-  int Sec = S.toInt();
-
-  //init rtc
-  if (!rtc.begin())
-  {
-    DEBUGPRINTLN("Couldn't find RTC");
-
-    OLED_Display.clearDisplay();
-    OLED_Display.print("Couldn't find RTC");
-
-    rtc.adjust(DateTime(Year, Month, Day, Hour, Min, Sec)); //set rtc to npt
-    DEBUGPRINTLN("Clock Set");
-    OLED_Display.print("RTC set to NTP");
-    OLED_Display.display();
-
-    delay(1000);
-    ESP.restart();
-  }
-
-  else
-  {
-    DEBUGPRINTLN("RTC Init");
-    DEBUGPRINTLN("RTC Running - Updating Clock to NTP");
-    rtc.adjust(DateTime(Year, Month, Day, Hour, Min, Sec));
-    DEBUGPRINTLN("Clock Set");
-    OLED_Display.print("RTC set to NTP");
-  }
-
-  //used with feather clock pcf8523 does not work with ds3231
-  // if (!rtc.initialized())
-  // {
-  //   //update rtc with ntp time
-  //   DEBUGPRINTLN("RTC is NOT running! - Setting Clock to NTP");
-  //   rtc.adjust(DateTime(Year, Month, Day, Hour, Min, Sec));
-  //   DEBUGPRINTLN("Clock Set");
-  //   OLED_Display.print("RTC set to NTP");
-  // }
-
-  // else
-  // {
-  //   //update rtc with ntp time
-  //   DEBUGPRINTLN("RTC Running - Updating Clock to NTP");
-  //   rtc.adjust(DateTime(Year, Month, Day, Hour, Min, Sec));
-  //   DEBUGPRINTLN("Clock Set");
-  //   OLED_Display.print("RTC set to NTP");
-  // }
-
-  //stop asking for internet ntp time
-  void setInterval(uint16_t seconds = 0);
-
-  /**********  init i2c sensor  ************/
+ /**********  init i2c temp sensor  ************/
   OLED_Display.print("Init Sensor");
 
   // get status of sensor
-  status = bme.begin(BME280_ADDRESS_ALTERNATE);     
+  status = bme.begin(BME280_ADDRESS_ALTERNATE);
 
-  if (!status)            // test status
+  if (!status) // test status
   {
     OLED_Display.print("Can't find BME280");
     DEBUGPRINTLN("Can't find BME280, it may have fell on the floor");
@@ -501,6 +301,232 @@ void setup()
   // Wire.write(byte(0x00));          //max range 0x00=43mm,0x01=86mm,0x18=1000mm,0x8C=6000mm
   // Wire.endTransmission();
   // tell sensor to read echos
+  //buttons/LEDs on OLED board
+
+  /*****************************   TOF VL53L0X   ******************************/
+  Serial.println("Adafruit VL53L0X test");
+  if (!lox.begin()) {
+    Serial.println(F("Failed to boot VL53L0X"));
+    while(1);
+  }
+  // power 
+
+  /************************   switches and leds   ******************************/
+  pinMode(BUTTON_A, INPUT_PULLUP);
+  pinMode(BUTTON_B, INPUT_PULLUP);
+  pinMode(BUTTON_C, INPUT_PULLUP);
+  pinMode(Remote_LED_Pin, OUTPUT);
+  pinMode(Local_LED_Pin, OUTPUT);
+
+  /**********************   wifi   ***********************/
+
+  // Set device as a Wi-Fi Station
+  WiFi.mode(WIFI_STA);
+
+  // Init ESP-NOW
+  if (esp_now_init() != ESP_OK)
+  {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+  else
+  {
+    Serial.println("initi ESP-NOW OK");
+  }
+
+  // Once ESPNow is successfully Init, we will register for Send CB to
+  // get the status of Trasnmitted packet
+  esp_now_register_send_cb(OnDataSent);
+
+  // Register peer
+  esp_now_peer_info_t peerInfo;
+  memcpy(peerInfo.peer_addr, broadcastAddress, 6);
+  peerInfo.channel = 0;
+  peerInfo.encrypt = false;
+
+  // Add peer
+  if (esp_now_add_peer(&peerInfo) != ESP_OK)
+  {
+    Serial.println("Failed to add peer");
+    return;
+  }
+
+  // Register for a callback function that will be called when data is received
+  esp_now_register_recv_cb(OnDataRecv);
+
+  //connect to wifi
+  DEBUGPRINT("Connect to SSID: ");
+  DEBUGPRINTLN(WIFI_SSID);
+  DEBUGPRINT("Waiting for Network:");
+
+  OLED_Display.setCursor(0, 0);
+  OLED_Display.println("Connecting to SSID:"); //line 1
+  OLED_Display.println(WIFI_SSID);             //line 2
+  OLED_Display.print("Waiting for Network:");
+  OLED_Display.println("");
+  OLED_Display.display();
+
+  byte count = 0; //used for network and ntp timeout
+
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+  //wait for connection
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(500);
+    DEBUGPRINT(".");
+    count++;
+    OLED_Display.print(".");
+    OLED_Display.display();
+
+    if (!digitalRead(BUTTON_A)) //bypass wifi if button pressed
+    {
+      count = 0;
+      break;
+    }
+
+    if (count > 20) //if not connected reboot
+    {
+      OLED_Display.clearDisplay();
+      OLED_Display.display();
+      OLED_Display.print("Time out Restarting");
+      OLED_Display.display();
+      delay(1000);
+      ESP.restart();
+    }
+  }
+
+  DEBUGPRINTLN("");
+  DEBUGPRINTLN("WIFI Connected");
+  DEBUGPRINT("IP ADR:");
+  DEBUGPRINTLN(WiFi.localIP());
+
+  //display connection on oled
+  OLED_Display.println(""); //line 3
+  OLED_Display.print("Connected");
+  OLED_Display.println("IP:");
+  OLED_Display.print(WiFi.localIP());
+  OLED_Display.display();
+  delay(1000);
+  OLED_Display.clearDisplay();
+  OLED_Display.display();
+
+  // *********************  ntp   *****************
+  DEBUGPRINT("Waiting for NTP:");
+  OLED_Display.setCursor(0, 0);
+  OLED_Display.println("Waiting for NTP:");
+
+  //connection loop
+  do
+  {
+    delay(500);
+    count++;
+    DEBUGPRINT(".");
+    OLED_Display.print(".");
+    OLED_Display.display();
+
+    if (!digitalRead(BUTTON_A)) //bypass wifi if button pressed
+    {
+      count = 0;
+      break;
+    }
+
+    if (count > 20) //if not connected reboot
+    {
+      OLED_Display.clearDisplay();
+      OLED_Display.print("Time out Restarting");
+      OLED_Display.display();
+      delay(1000);
+      ESP.restart();
+    }
+  } while (!waitForSync(1)); //sync from time server
+
+  // get ntp time
+  DEBUGPRINTLN("UTC: " + UTC.dateTime());
+  CentralTZ.setLocation("America/Chicago");
+  String NTPTime = CentralTZ.dateTime("Y/M/d H:i:s");
+  DEBUGPRINTLN("NTP: " + NTPTime);
+  OLED_Display.println();
+  OLED_Display.println(NTPTime);
+  delay(1000);
+
+  /*******************  rtc  **************************/
+  //convert string from ntp to int for rtc
+  String Y = CentralTZ.dateTime("Y");
+  int Year = Y.toInt();
+  String M = CentralTZ.dateTime("m");
+  int Month = M.toInt();
+  String D = CentralTZ.dateTime("d");
+  int Day = D.toInt();
+  String H = CentralTZ.dateTime("H");
+  int Hour = H.toInt();
+  String m = CentralTZ.dateTime("i");
+  int Min = m.toInt();
+  String S = CentralTZ.dateTime("s");
+  int Sec = S.toInt();
+
+  //init rtc
+  if (!rtc.begin())
+  {
+    DEBUGPRINTLN("Couldn't find RTC");
+
+    OLED_Display.clearDisplay();
+    OLED_Display.print("Couldn't find RTC");
+
+    // rtc.adjust(DateTime(Year, Month, Day, Hour, Min, Sec)); //set rtc to npt
+    // DEBUGPRINTLN("Clock Set");
+    // OLED_Display.print("RTC set to NTP");
+    // OLED_Display.display();
+
+    delay(1000);
+    ESP.restart();
+  }
+
+  else
+  {
+    DEBUGPRINTLN("RTC Init");
+    DEBUGPRINTLN("RTC Running - Updating Clock to NTP");
+    rtc.adjust(DateTime(Year, Month, Day, Hour, Min, Sec));
+    DEBUGPRINTLN("Clock Set");
+    OLED_Display.print("RTC set to NTP");
+    delay(1000);
+  }
+
+  //used with feather clock pcf8523 does not work with ds3231
+  // if (!rtc.initialized())
+  // {
+  //   //update rtc with ntp time
+  //   DEBUGPRINTLN("RTC is NOT running! - Setting Clock to NTP");
+  //   rtc.adjust(DateTime(Year, Month, Day, Hour, Min, Sec));
+  //   DEBUGPRINTLN("Clock Set");
+  //   OLED_Display.print("RTC set to NTP");
+  // }
+
+  // else
+  // {
+  //   //update rtc with ntp time
+  //   DEBUGPRINTLN("RTC Running - Updating Clock to NTP");
+  //   rtc.adjust(DateTime(Year, Month, Day, Hour, Min, Sec));
+  //   DEBUGPRINTLN("Clock Set");
+  //   OLED_Display.print("RTC set to NTP");
+  // }
+
+  /************* set up task runner  *************/
+  runner.init();
+  runner.addTask(t1_Update); //for sensors
+  runner.addTask(t2_clock);  // clock and display
+  //runner.addTask(t3_SDCard);                //for SD card
+
+  t1_Update.enable(); //for sensors
+  t2_clock.enable();  //for clock and display
+  //t3_SDCard.enable(); //for SD card
+
+
+
+  //stop asking for internet ntp time
+  void setInterval(uint16_t seconds = 0);
+
+ 
 
   //delay(1000);
 }
@@ -528,6 +554,19 @@ void loop()
   DEBUGPRINT("Analog LightInput: ");
   DEBUGPRINTLN(PWMControl.PWM_Local);
   ledcWrite(PWMChannel, PWMControl.PWM_Remote);
+
+  VL53L0X_RangingMeasurementData_t measure;
+    
+  Serial.print("Reading a measurement... ");
+  lox.rangingTest(&measure, false); // pass in 'true' to get debug data printout!
+
+  if (measure.RangeStatus != 4) {  // phase failures have incorrect data
+    Serial.print("Distance (mm): "); Serial.println(measure.RangeMilliMeter);
+  } else {
+    Serial.println(" out of range ");
+  }
+
+
   /*
   DEBUGPRINTLN("Read Ping");
   //SRFPing();
@@ -569,11 +608,11 @@ void loop()
 
   if (result == ESP_OK)
   {
-    //Serial.println("Sent data with success");
+    Serial.println("Sent data with success");
   }
   else
   {
-    //Serial.println("Error sending the data");
+    Serial.println("Error sending the data");
   }
 
   // updateDisplay();
