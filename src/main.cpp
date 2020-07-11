@@ -99,6 +99,7 @@ struct OLED_SW RemoteSwitch;      //state of remote switch
 struct BME_Sensor LocalReadings;  //onboard enviro sensor reading
 struct BME_Sensor RemoteReadings; //remote enviro sensors reading
 struct LEDS StatusLED;            //state of on board LED
+struct AnalogControl PWMControl;
 
 struct Packet Transmit_Pkt;       //packet sent to remote
 struct Packet Receive_Pkt;        //packet received from remote
@@ -132,12 +133,12 @@ int Light = 0;                    //light sensor value
 const byte LightSensorPin = 36;
 const byte LEDPWMPin = 33;
 const byte PWMChannel = 0;
-
+//int AnalogValue = 0;
 /*************************   esp_NOW   ******************************/
 
 // MAC address of RECEIVER
-uint8_t broadcastAddress[]{0x30, 0xAE, 0xA4, 0x46, 0xF0, 0xE4}; // Unit A = outside sender 1
-//uint8_t broadcastAddress[]{0xA4, 0xCF, 0x12, 0x0B, 0x2B, 0xB4}; // Unit B = outside sender 2
+//uint8_t broadcastAddress[]{0x30, 0xAE, 0xA4, 0x46, 0xF0, 0xE4}; // Unit A = outside sender 1
+uint8_t broadcastAddress[]{0xA4, 0xCF, 0x12, 0x0B, 0x2B, 0xB4}; // Unit B = outside sender 2
 
 String ESPNOW_Success;              //vars to hold connect string
 
@@ -172,7 +173,9 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   RemoteSwitch.Switch_A = Receive_Pkt.Switch_A;
   RemoteSwitch.Switch_B = Receive_Pkt.Switch_B;
   RemoteSwitch.Switch_C = Receive_Pkt.Switch_C;
-  StatusLED.LED_R = Receive_Pkt.LED;
+  StatusLED.LED_Remote = Receive_Pkt.LED;
+  PWMControl.PWM_Remote = Receive_Pkt.PWMValue;
+  
 }
 
 /***********************   setup   *********************/
@@ -188,7 +191,7 @@ void setup()
 
   /**************   analog control   ***************/
   ledcAttachPin(LEDPWMPin, PWMChannel);
-  ledcSetup(PWMChannel, 400, 12);
+  ledcSetup(PWMChannel, 400, 12);                   //set to 12 so analog read and pwm is same bit width
 
   /************* set up task runner  *************/
   runner.init();
@@ -506,7 +509,7 @@ void setup()
 void loop()
 {
   // start task manager
-  //////////////////////////runner.execute();
+  runner.execute();
 
   //events();
 
@@ -516,13 +519,15 @@ void loop()
   // }
 
   //DEBUGPRINTLN("Read switches");
-  //ReadSwitches(&LocalSwitch);
-  //LED_Indicator(&StatusLED);
+  ReadSwitches(&LocalSwitch);
+  LED_Indicator(&StatusLED);
 
   //analog control
-  Serial.print("Analog LightInput: ");
-  Serial.println(analogRead(LightSensorPin));
-  ledcWrite(PWMChannel, analogRead(LightSensorPin));
+  //read light sensor analog value  and send to PWM
+  PWMControl.PWM_Local = analogRead(LightSensorPin);
+  DEBUGPRINT("Analog LightInput: ");
+  DEBUGPRINTLN(PWMControl.PWM_Local);
+  ledcWrite(PWMChannel, PWMControl.PWM_Remote);
   /*
   DEBUGPRINTLN("Read Ping");
   //SRFPing();
@@ -556,7 +561,8 @@ void loop()
   Transmit_Pkt.Switch_A = LocalSwitch.Switch_A;
   Transmit_Pkt.Switch_B = LocalSwitch.Switch_B;
   Transmit_Pkt.Switch_C = LocalSwitch.Switch_C;
-  Transmit_Pkt.LED = StatusLED.LED_L;
+  Transmit_Pkt.LED = StatusLED.LED_Local;
+  Transmit_Pkt.PWMValue = PWMControl.PWM_Local;
 
   // Send message via ESP-NOW
   esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *)&Transmit_Pkt, sizeof(Transmit_Pkt));
@@ -571,7 +577,7 @@ void loop()
   }
 
   // updateDisplay();
-  delay(1000);
+  //delay(1000);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////

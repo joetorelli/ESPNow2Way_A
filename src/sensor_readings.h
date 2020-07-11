@@ -33,8 +33,17 @@ struct OLED_SW
 struct LEDS
 {
 
-    int LED_R = 0;
-    int LED_L = 0;
+    int LED_Remote = 0;
+    int LED_Local = 0;
+};
+
+
+//store the status of leds
+struct AnalogControl
+{
+
+    int PWM_Remote = 0;
+    int PWM_Local = 0;
 };
 
 //packet to transfer data
@@ -48,6 +57,7 @@ struct Packet
     int Switch_B = 0;
     int Switch_C = 0;
     int LED = 0;
+    int PWMValue = 0;
 };
 // extern struct OLED_SW Switch_State;
 // extern struct BME_Sensor Sensor_Values;
