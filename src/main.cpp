@@ -51,6 +51,9 @@ nodemcu32s
   PWM working
     Controlled LED by LDR input
 
+  VL53l0x Time of Flight Sensor - working
+    used movingAvg Lib to get stable readings
+
   eztime - 
     for ntp and time functions
     read on startup to update RTC
@@ -83,6 +86,7 @@ purpose: turd control, log data, remote sensing
 
 #include <ezTime.h>
 #include <TaskScheduler.h>
+#include <movingAvg.h>
 
 /*******************   oled display   ******************/
 // Declaration for an SSD1306 OLED_Display connected to I2C (SDA, SCL pins)
@@ -113,7 +117,10 @@ const byte PWMChannel = 0;
 /*************************  TOF VL53L0X   *************/
 Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 VL53L0X_RangingMeasurementData_t measure;
-
+movingAvg TOFMovingAvg(15); // define the moving average object
+int TOFRangeValue = 0;
+int TOFAvgValue = 0;
+void GetTOF();
 /*****************   structures   **************************/
 struct OLED_SW LocalSwitch;       //state of onboard switch
 struct OLED_SW RemoteSwitch;      //state of remote switch
@@ -152,8 +159,8 @@ String ESPNOW_Success; //vars to hold connect string
 // Callback when data is sent
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
 {
-  Serial.print("\r\nLast Packet Send Status:\t");
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  DEBUGPRINT("\r\nLast Packet Send Status:\t");
+  DEBUGPRINTLN(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
   if (status == 0)
   {
     ESPNOW_Success = "Delivery Success :)";
@@ -169,8 +176,8 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
 {
   memcpy(&Receive_Pkt, incomingData, sizeof(Receive_Pkt)); //move incomming data to Receive_Pkt
-  Serial.print("Bytes received: ");
-  Serial.println(len);
+  DEBUGPRINT("Bytes received: ");
+  DEBUGPRINTLN(len);
 
   //move incomming packet to remote structures
   RemoteReadings.f_temperature = Receive_Pkt.f_temperature;
@@ -306,8 +313,8 @@ void setup()
     while (1)
       ;
   }
-  // power
 
+  TOFMovingAvg.begin();
   /************************   switches and leds   ******************************/
   pinMode(BUTTON_A, INPUT_PULLUP);
   pinMode(BUTTON_B, INPUT_PULLUP);
@@ -323,12 +330,12 @@ void setup()
   // Init ESP-NOW
   if (esp_now_init() != ESP_OK)
   {
-    Serial.println("Error initializing ESP-NOW");
+    DEBUGPRINTLN("Error initializing ESP-NOW");
     return;
   }
   else
   {
-    Serial.println("initi ESP-NOW OK");
+    DEBUGPRINTLN("initi ESP-NOW OK");
   }
 
   // Once ESPNow is successfully Init, we will register for Send CB to
@@ -344,7 +351,7 @@ void setup()
   // Add peer
   if (esp_now_add_peer(&peerInfo) != ESP_OK)
   {
-    Serial.println("Failed to add peer");
+    DEBUGPRINTLN("Failed to add peer");
     return;
   }
 
@@ -543,24 +550,13 @@ void loop()
 
   //analog control
   //read light sensor analog value  and send to PWM
-  PWMControl.PWM_Local = analogRead(LightSensorPin);
+  PWMControl.PWM_Local = analogRead(LightSensorPin); //assign analog value to pwm
   DEBUGPRINT("Analog LightInput: ");
   DEBUGPRINTLN(PWMControl.PWM_Local);
-  ledcWrite(PWMChannel, PWMControl.PWM_Remote);
+  ledcWrite(PWMChannel, PWMControl.PWM_Remote); //write pwm value
 
-  // time of flight
-  Serial.print("Reading a measurement... ");
-  lox.rangingTest(&measure, false); // pass in 'true' to get debug data printout!
 
-  if (measure.RangeStatus != 4)
-  { // phase failures have incorrect data
-    Serial.print("Distance (mm): ");
-    Serial.println(measure.RangeMilliMeter);
-  }
-  else
-  {
-    Serial.println(" out of range ");
-  }
+  GetTOF();
 
   /*
   DEBUGPRINTLN("Read Ping");
@@ -603,11 +599,11 @@ void loop()
 
   if (result == ESP_OK)
   {
-    Serial.println("Sent data with success");
+    DEBUGPRINTLN("Sent data with success");
   }
   else
   {
-    Serial.println("Error sending the data");
+    DEBUGPRINTLN("Error sending the data");
   }
 
   // updateDisplay();
@@ -615,7 +611,26 @@ void loop()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
+void GetTOF()
+{
 
+// time of flight
+//Serial.println("Reading a measurement... ");
+lox.rangingTest(&measure, false); // pass in 'true' to get debug data printout!
+
+if (measure.RangeStatus != 4)
+{ // phase failures have incorrect data
+
+    TOFRangeValue = measure.RangeMilliMeter;
+    TOFAvgValue = TOFMovingAvg.reading(measure.RangeMilliMeter);
+}
+else
+{
+    Serial.println(" out of range ");
+}
+
+
+}
 void updateDisplay()
 {
   // Display Readings on OLED Display
@@ -658,7 +673,7 @@ void updateDisplay()
   }
 
   OLED_Display.display();
-
+  /*
   // Display Readings in Serial Monitor
   Serial.println("      Rmt    Lcl");
   Serial.print("Temp: ");
@@ -677,6 +692,7 @@ void updateDisplay()
   Serial.print(RemoteReadings.f_pressure);
   //Serial.println(" hPa");
   Serial.println();
+*/
 }
 
 void clock_update()
@@ -691,6 +707,12 @@ void sensor_update()
 {
   DEBUGPRINTLN("Read sensor***********");
   ReadSensor(&bme, &LocalReadings);
+
+
+  Serial.print("Distance (mm): ");
+  Serial.print(TOFRangeValue);
+  Serial.print("   Avg (mm): ");
+  Serial.println(TOFAvgValue);
 }
 
 void SD_Update()
