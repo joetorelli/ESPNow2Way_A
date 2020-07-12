@@ -20,7 +20,7 @@
 //#define CALIBRATION_FILE "/TFT_Touch_CalData" //touch cal data in SPIFF
 #endif
 
-#define DEBUGLOG
+//#define DEBUGLOG
 
 #ifdef DEBUGLOG
 
